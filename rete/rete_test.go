@@ -49,34 +49,26 @@ func TestBuffer(t *testing.T) {
 	n1.OutputsTo(n2)
 	s1 := ""
 	s2 := ""
-	c1 := n2.GetCursor(func(item interface{}) {
+	n2.AddListener(func(item interface{}) {
 		s1 = fmt.Sprintf("%v", item)
 	})
-	c2 := n2.GetCursor(func(item interface{}) {
+	n2.AddListener(func(item interface{}) {
 		s2 = fmt.Sprintf("%v", item)
 	})
 	n1.Receive(2)
 	if s1 != "2" {
-		t.Errorf("First cursor not invoked: %s", s1)
+		t.Errorf("First listener not invoked: %s", s1)
 	}
 	if s2 != "2" {
-		t.Errorf("Second cursor not invoked: %s", s2)
+		t.Errorf("Second listener not invoked: %s", s2)
 	}
-    c1.Done()
-	c2.Done()
 	n1.Receive(3)
 	n1.Receive(4)
-	if s1 != "2" {
-		t.Errorf("First cursor invoked after Done(): %s", s1)
-	}
     expect := []int{2, 3, 4, 5}
-	s3 := ""
-	c3 := n2.GetCursor(func(item interface{}) {
-		s3 = fmt.Sprintf("%v", item)
-	})
+	c3 := n2.GetCursor()
 	n1.Receive(5)
 	got := []int{}
-	for item := c3.Next(); item != nil; item = c3.Next() {
+	for item, present := c3.Next(); present; item, present = c3.Next() {
 		got = append(got, item.(int))
 	}
 	if len(expect) != len(got) {

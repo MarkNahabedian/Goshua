@@ -150,14 +150,15 @@ func (n *TestNode) IsValid() bool {
 }
 
 
-// BufferNode collects items into a buffer and provides cursors for
-// iterating over the collected items.  Only BufferNodes can be the
-// inputs of a Join node.
+// BufferNode collects items into a buffer.  Listener functions can
+// be registered to be called on each item as it is received.
+// BufferNode also provides cursors for iterating over the collected
+// items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
 	// node
 	basicNode
 	items []interface{}
-	cursors []*cursor
+	listeners []func(interface{})
 }
 
 // IsValid is part of the Node interface.
@@ -171,6 +172,12 @@ func (n *BufferNode) Emit(item interface{}) {
 }
 */
 
+// AddListener registers f as a function to be called on an item
+// when it is Received by the BufferNode.
+func (n *BufferNode) AddListener(f func(interface{})) {
+	n.listeners = append(n.listeners, f)
+}
+
 // Receive is part of the Node interface.
 // When a BufferNode receives an item each of its cursors
 // calls its newItemFunction so that the JoinNodfe that
@@ -178,51 +185,35 @@ func (n *BufferNode) Emit(item interface{}) {
 // each item in the other branch of the JoinNode's BufferNode.
 func (n *BufferNode) Receive(item interface{}) {
 	n.items = append(n.items, item)
-	for _, c := range n.cursors {
-		c.newItemFunction(item)
+	for _, l := range n.listeners {
+		l(item)
 	}
 }
 
 type cursor struct {
-	node
 	done bool
 	buffer *BufferNode
 	index int
-	newItemFunction func(interface{})
 }
 
 // GetCursor returns a new cursor into n.
-func (n *BufferNode) GetCursor(newItemFunction func(interface{})) *cursor {
+func (n *BufferNode) GetCursor() *cursor {
 	var c cursor
 	c.buffer = n
 	c.done = false
 	c.index = 0
-	c.newItemFunction = newItemFunction
-	n.cursors = append(n.cursors, &c)
 	return &c
 }
 
-// Done should be called on a cursor when it is no longer to be used.
-func (c *cursor) Done() {
-	c.done = true
-	for i, c1 := range c.buffer.cursors {
-		if c == c1 {
-		   c.buffer.cursors = append(c.buffer.cursors[:i],
-		                             c.buffer.cursors[i+1:]...)
-		   break
-		}
-	}
-}
-
 // Next returns the item that the cursor is currently referring to and
-//  advances the cursor.  Next returns nil if there are no more items.
-func (c *cursor) Next() interface{} {
+// advances the cursor.  Next returns nil, false if there are no more items.
+func (c *cursor) Next() (interface{}, bool) {
 	if c.index >= len(c.buffer.items) {
-	   return nil
+	   return nil, false
 	}
 	i := c.buffer.items[c.index]
 	c.index += 1
-	return i
+	return i, true
 }
 
 
