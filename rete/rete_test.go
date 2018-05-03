@@ -29,7 +29,7 @@ func TestTestNode(t *testing.T) {
 			s = fmt.Sprintf("%v", item)
 		},
 	}
-	n1.OutputsTo(n2)
+	Connect(n1, n2)
 	n1.Receive(5)
 	if s != "" {
 		t.Errorf("Action should not have been executed: %s", s)
@@ -46,7 +46,7 @@ func TestBuffer(t *testing.T) {
 		testFunction: func(item interface{}) bool { return true },
 	}
 	n2 := &BufferNode{}
-	n1.OutputsTo(n2)
+	Connect(n1, n2)
 	s1 := ""
 	s2 := ""
 	n2.AddListener(func(item interface{}) {
@@ -64,7 +64,7 @@ func TestBuffer(t *testing.T) {
 	}
 	n1.Receive(3)
 	n1.Receive(4)
-    expect := []int{2, 3, 4, 5}
+	expect := []int{2, 3, 4, 5}
 	c3 := n2.GetCursor()
 	n1.Receive(5)
 	got := []int{}
@@ -83,7 +83,76 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestJoinNode(t *testing.T) {
-}
-
-func TestInitialization(t *testing.T) {
+	root_node := &TestNode{
+		testFunction: func(item interface{}) bool { return true },
+	}
+	n1 := &TestNode{
+		testFunction: func(item interface{}) bool {
+			_, is := item.(string)
+			return is
+		},
+	}
+	n1.label = "letters"
+	Connect(root_node, n1)
+	log1 := &ActionNode{
+		actionFunction: func(item interface{}) {
+			t.Logf("log1: %#v", item)
+		},
+	}
+	Connect(n1, log1)
+	bn1 := &BufferNode{}
+	bn1.label = "bn1"
+	Connect(log1, bn1)
+	n2 := &TestNode{
+		testFunction: func(item interface{}) bool {
+			_, is := item.(int)
+			return is
+		},
+	}
+	n2.label = "digits"
+	Connect(root_node, n2)
+	log2 := &ActionNode{
+		actionFunction: func(item interface{}) {
+			t.Logf("log2: %#v", item)
+		},
+	}
+	Connect(n2, log2)
+	bn2 := &BufferNode{}
+	bn2.label = "bn2"
+	Connect(log2, bn2)
+	jn := &JoinNode{}
+	Connect(bn1, jn)
+	Connect(bn2, jn)
+	outputs := []string{}
+	output_node := &ActionNode{
+		actionFunction: func(item interface{}) {
+			t.Logf("joined %#v", item)
+			pair := item.([]interface{})
+			s := pair[0].(string)
+			i := pair[1].(int)
+			outputs = append(outputs, fmt.Sprintf("%s%d", s, i))
+		},
+	}
+	Connect(jn, output_node)
+	Initialize(root_node)
+	root_node.Receive(1)
+	root_node.Receive(2)
+	root_node.Receive("a")
+	root_node.Receive("b")
+	root_node.Receive(3)
+	expect := []string{
+		"a1", "a2", "b1", "b2", "a3", "b3",
+	}
+	if len(expect) != len(outputs) {
+		t.Errorf("wrong count: want %v, got %v", expect, outputs)
+	}
+	for i, exp := range expect {
+		if exp != outputs[i] {
+			t.Errorf("Values differ: want %v, got %v", exp, outputs[i])
+		}
+	}
+	t.Logf("bn1: %d listeners", len(bn1.listeners))
+	t.Logf("bn2: %d listeners", len(bn2.listeners))
+	t.Logf("bn1 items: %#v", bn1.items)
+	t.Logf("bn2 items: %#v", bn2.items)
 }

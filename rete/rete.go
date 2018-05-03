@@ -1,6 +1,9 @@
 // Package rete implements the Rete algorthm.
 package rete
 
+import "fmt"
+import "reflect"
+
 type node interface {
 	// Label returns the node's label.
 	Label() string
@@ -10,10 +13,6 @@ type node interface {
 
 	// Outputs returns the nodes that this node can output to.
 	Outputs() []node
-
-	// OutputsTo connects the receiving node with n such that n is an
-	// Output of the receiver and the receiver is an Input of n.
-	OutputsTo(n node)
 
 	addInput(node)
 	addOutput(node)
@@ -31,33 +30,53 @@ type node interface {
 	// InitializeNode should be called once the entire rete is constructed but
 	// before any data is entered.
 	InitializeNode()
+
+	// Invoke a function when a node receives an item.  Only some nodes
+	// support this.
+	AddListener(func(interface{}))
 }
 
 // Initialize should be called on the root node of a rete after the rete is
 // constructed but before it is used to make sure every node is ready to run.
 func Initialize(n node) {
-	initialized := make(map [node]bool)
-	if initialized[n] { return }
-	n.InitializeNode()
-	initialized[n] = true
-	for _, o := range n.Outputs() {
-		Initialize(o)
+	initialized := make(map[node]bool)
+	var walker func(node)
+	walker = func(n node) {
+		if initialized[n] {
+			return
+		}
+		n.InitializeNode()
+		initialized[n] = true
+		for _, o := range n.Outputs() {
+			walker(o)
+		}
 	}
+	walker(n)
 }
 
+// Connect arranges for from to output to to.
+func Connect(from node, to node) {
+	from.addOutput(to)
+	to.addInput(from)
+}
 
 // basicNode provides a common implementation of the node interface's
-// Inputs, Outputs, Emit and OutputsTo methods.
+// Inputs, Outputs, and Emit methods.
 // basicNode is abstract.  It should not be instantiated.
 type basicNode struct {
 	node
-	label string
-	inputs []node
+	label   string
+	inputs  []node
 	outputs []node
 }
 
 // Label is part of the node interface.
 func (n *basicNode) Label() string {
+	if n.label == "" {
+		return fmt.Sprintf("%s-%x",
+			reflect.TypeOf(n).Name(),
+			reflect.ValueOf(n).Pointer())
+	}
 	return n.label
 }
 
@@ -69,13 +88,6 @@ func (n *basicNode) Inputs() []node {
 // Outputs is part of the node interface.
 func (n *basicNode) Outputs() []node {
 	return n.outputs
-}
-
-// OutputsTo connects n1 and n2 such that n1 is an Input of n2 and
-// n2 is an Output of n1.
-func (n1 *basicNode) OutputsTo(n2 node) {
-	n1.addOutput(n2)
-	n2.addInput(n1)
 }
 
 func (n1 *basicNode) addInput(n2 node) {
@@ -109,6 +121,9 @@ func (n *basicNode) IsValid() bool {
 	panic("basicNode is abstract.  It should not have been instantiated.")
 }
 
+func (n *basicNode) AddListener(func(interface{})) {
+	panic("basicNode doesn't support AddListener")
+}
 
 // ActionNode is a node that can perform some action on its input item,
 // like construct and assert a fact.
@@ -121,13 +136,14 @@ type ActionNode struct {
 // Receive is part of the Node interface.
 func (n *ActionNode) Receive(item interface{}) {
 	n.actionFunction(item)
+	// Pass item through to any outputs.
+	n.Emit(item)
 }
 
 // IsValid is part of the node interface.
 func (n *ActionNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
-
 
 // TestNode implements a rete node with a single input.  items Received
 // by a TestNode are only Emited if they satisfy a test function.
@@ -140,7 +156,7 @@ type TestNode struct {
 // Receive is part of the node interface.
 func (n *TestNode) Receive(item interface{}) {
 	if n.testFunction(item) {
-	   n.Emit(item)
+		n.Emit(item)
 	}
 }
 
@@ -149,7 +165,6 @@ func (n *TestNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
 
-
 // BufferNode collects items into a buffer.  Listener functions can
 // be registered to be called on each item as it is received.
 // BufferNode also provides cursors for iterating over the collected
@@ -157,7 +172,7 @@ func (n *TestNode) IsValid() bool {
 type BufferNode struct {
 	// node
 	basicNode
-	items []interface{}
+	items     []interface{}
 	listeners []func(interface{})
 }
 
@@ -191,9 +206,9 @@ func (n *BufferNode) Receive(item interface{}) {
 }
 
 type cursor struct {
-	done bool
+	done   bool
 	buffer *BufferNode
-	index int
+	index  int
 }
 
 // GetCursor returns a new cursor into n.
@@ -209,23 +224,23 @@ func (n *BufferNode) GetCursor() *cursor {
 // advances the cursor.  Next returns nil, false if there are no more items.
 func (c *cursor) Next() (interface{}, bool) {
 	if c.index >= len(c.buffer.items) {
-	   return nil, false
+		return nil, false
 	}
 	i := c.buffer.items[c.index]
 	c.index += 1
 	return i, true
 }
 
-
+// JoinNode combines the items in its two input BufferNodes pairwise,
+// Emiting the cross-product.
 type JoinNode struct {
 	// node
 	basicNode
-	cursors []*cursor
 }
 
 // IsValid is part of the Node interface.
 func (n *JoinNode) IsValid() bool {
-	if  len(n.Inputs()) != 2 {
+	if len(n.Inputs()) != 2 {
 		return false
 	}
 	// The inputs of a JoinNode must be BufferNodes.
@@ -240,6 +255,19 @@ func (n *JoinNode) IsValid() bool {
 
 // InitializeNode is part of the node interface
 func (n *JoinNode) InitializeNode() {
-	// Set up cursors
+	listener := func(inputIndex int) func(interface{}) {
+		return func(item1 interface{}) {
+			otherInput := n.Inputs()[(inputIndex+1)%2].(*BufferNode)
+			c := otherInput.GetCursor()
+			for item2, present := c.Next(); present; item2, present = c.Next() {
+				if inputIndex == 0 {
+					n.Emit([]interface{}{item1, item2})
+				} else {
+					n.Emit([]interface{}{item2, item1})
+				}
+			}
+		}
+	}
+	n.Inputs()[0].AddListener(listener(0))
+	n.Inputs()[1].AddListener(listener(1))
 }
-
