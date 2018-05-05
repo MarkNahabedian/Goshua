@@ -100,12 +100,12 @@ func collectionUnifier(lengthFunction func(reflect.Value) int,
 	indexFunction func(reflect.Value, int) reflect.Value) func(interface{}, interface{}, goshua.Bindings, func(goshua.Bindings)) {
 	return func(thing1, thing2 interface{}, b goshua.Bindings, continuation func(goshua.Bindings)) {
 		/*
-		     // It's easy if they're identical.
-		     // I don't know how to test identity in go though.
-		     if thing1 == thing2 {
-		     	continuation(b)
-			return
-		     }
+			     // It's easy if they're identical.
+			     // I don't know how to test identity in go though.
+			     if thing1 == thing2 {
+			     	continuation(b)
+				return
+			     }
 		*/
 		v1 := reflect.ValueOf(thing1)
 		v2 := reflect.ValueOf(thing2)
