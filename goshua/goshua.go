@@ -113,8 +113,9 @@ type Query interface {
 
 // NewQuery makes a Query for unifying against a struct of type t with field.
 // values as described in fieldValues.  The values in fieldValues can be
-// Variables.
-var NewQuery func(t reflect.Type, fieldValues map[string]interface{}) Query
+// Variables.  itself can be a Variable to bind the object being queried
+// against to if unification succeeds.
+var NewQuery func(t reflect.Type, itself Variable, fieldValues map[string]interface{}) Query
 
 // Predication types which implement their own storage (for example,
 // in an external database) implement the Tellable interface.

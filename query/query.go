@@ -10,15 +10,18 @@ import "goshua/goshua"
 // of a struct.
 type query struct {
 	structType reflect.Type
+	itself     goshua.Variable
 	fields     map[string]interface{}
 }
 
 // newQuery makes a Query for unifying against a struct of type t with field.
 // values as described in fieldValues.  The values in fieldValues can be
-// Variables.
-func newQuery(t reflect.Type, fieldValues map[string]interface{}) goshua.Query {
+// Variables.  If itself is provided that variable will be bound to the object
+// itself that the Query matched.
+func newQuery(t reflect.Type, itself goshua.Variable, fieldValues map[string]interface{}) goshua.Query {
 	q := query{
 		structType: t,
+		itself:     itself,
 		fields:     fieldValues,
 	}
 	return &q
@@ -93,5 +96,12 @@ func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(go
 			}
 		}
 	}
-	continuation(b)
+	if q.itself == nil {
+		continuation(b)
+	} else {
+		if b1, ok := b.Bind(q.itself, thing); ok {
+			continuation(b1)
+		} else {
+		}
+	}
 }

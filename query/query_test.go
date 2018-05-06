@@ -21,7 +21,7 @@ var testObject = testStruct{
 }
 
 // Compile time check that *variable implements goshua.Variable.
-var _ goshua.Query = newQuery(reflect.TypeOf(testObject), map[string]interface{}{
+var _ goshua.Query = newQuery(reflect.TypeOf(testObject), nil, map[string]interface{}{
 	"A": 12,
 	"B": "foobar",
 })
@@ -33,7 +33,7 @@ func TestUnifyQueryStruct(t *testing.T) {
 		A: 16,
 		B: "foo",
 	}
-	q := goshua.NewQuery(reflect.TypeOf(o), map[string]interface{}{
+	q := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
 		"A": 16,
 		"B": v,
 	})
@@ -57,7 +57,7 @@ func TestFailUnifyQueryStruct(t *testing.T) {
 		A: 16,
 		B: "foo",
 	}
-	q := goshua.NewQuery(reflect.TypeOf(o), map[string]interface{}{
+	q := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
 		"A": 0,
 		"B": "foo",
 	})
@@ -77,11 +77,11 @@ func TestUnifyQueryQuerySucceed(t *testing.T) {
      v := scope.Lookup("v")
      o := testStruct {}
      foo := "foo"
-     q1 := goshua.NewQuery(reflect.TypeOf(o), map[string] interface{} {
+     q1 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string] interface{} {
        "A": 16,
        "B": foo,
      })
-     q2 := goshua.NewQuery(reflect.TypeOf(o), map[string] interface{} {
+     q2 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string] interface{} {
        "A": 16,
        "B": v,
      })
@@ -101,11 +101,11 @@ func TestUnifyQueryQuerySucceed(t *testing.T) {
 func TestUnifyQueryQueryFail(t *testing.T) {
 	o := testStruct{}
 	tc := unification.MakeTestContinuation(t)
-	q1 := goshua.NewQuery(reflect.TypeOf(o), map[string]interface{}{
+	q1 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
 		"A": 16,
 		"B": "foo",
 	})
-	q2 := goshua.NewQuery(reflect.TypeOf(o), map[string]interface{}{
+	q2 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
 		"A": 16,
 		"B": "foo",
 	})
