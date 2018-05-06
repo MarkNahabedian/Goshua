@@ -6,11 +6,10 @@ import "testing"
 
 func TestActionNode(t *testing.T) {
 	s := ""
-	n := &ActionNode{
-		actionFunction: func(item interface{}) {
+	n := MakeActionNode(
+		func(item interface{}) {
 			s = fmt.Sprintf("%v", item)
-		},
-	}
+		})
 	n.Receive(5)
 	if s != "5" {
 		t.Errorf("Action not performed.")
@@ -19,16 +18,13 @@ func TestActionNode(t *testing.T) {
 
 func TestTestNode(t *testing.T) {
 	s := ""
-	n1 := &TestNode{
-		testFunction: func(item interface{}) bool {
+	n1 := MakeTestNode(func(item interface{}) bool {
 			return item.(int) == 4
-		},
-	}
-	n2 := &ActionNode{
-		actionFunction: func(item interface{}) {
+		})
+	n2 := MakeActionNode(
+		func(item interface{}) {
 			s = fmt.Sprintf("%v", item)
-		},
-	}
+		})
 	Connect(n1, n2)
 	n1.Receive(5)
 	if s != "" {
@@ -42,9 +38,7 @@ func TestTestNode(t *testing.T) {
 }
 
 func TestBuffer(t *testing.T) {
-	n1 := &TestNode{
-		testFunction: func(item interface{}) bool { return true },
-	}
+	n1 := MakeTestNode(func(item interface{}) bool { return true })
 	n2 := &BufferNode{}
 	Connect(n1, n2)
 	s1 := ""
@@ -83,39 +77,33 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestJoinNode(t *testing.T) {
-	root_node := &TestNode{
-		testFunction: func(item interface{}) bool { return true },
-	}
-	n1 := &TestNode{
-		testFunction: func(item interface{}) bool {
+	root_node := MakeTestNode(func(item interface{}) bool { return true },)
+	n1 := MakeTestNode(
+		func(item interface{}) bool {
 			_, is := item.(string)
 			return is
-		},
-	}
+		})
 	n1.label = "letters"
 	Connect(root_node, n1)
-	log1 := &ActionNode{
-		actionFunction: func(item interface{}) {
+	log1 := MakeActionNode(
+		func(item interface{}) {
 			t.Logf("log1: %#v", item)
-		},
-	}
+		})
 	Connect(n1, log1)
 	bn1 := &BufferNode{}
 	bn1.label = "bn1"
 	Connect(log1, bn1)
-	n2 := &TestNode{
-		testFunction: func(item interface{}) bool {
+	n2 := MakeTestNode(
+		func(item interface{}) bool {
 			_, is := item.(int)
 			return is
-		},
-	}
+		})
 	n2.label = "digits"
 	Connect(root_node, n2)
-	log2 := &ActionNode{
-		actionFunction: func(item interface{}) {
+	log2 := MakeActionNode(
+		func(item interface{}) {
 			t.Logf("log2: %#v", item)
-		},
-	}
+		})
 	Connect(n2, log2)
 	bn2 := &BufferNode{}
 	bn2.label = "bn2"
@@ -124,15 +112,14 @@ func TestJoinNode(t *testing.T) {
 	Connect(bn1, jn)
 	Connect(bn2, jn)
 	outputs := []string{}
-	output_node := &ActionNode{
-		actionFunction: func(item interface{}) {
+	output_node := MakeActionNode(
+		func(item interface{}) {
 			t.Logf("joined %#v", item)
 			pair := item.([]interface{})
 			s := pair[0].(string)
 			i := pair[1].(int)
 			outputs = append(outputs, fmt.Sprintf("%s%d", s, i))
-		},
-	}
+		})
 	Connect(jn, output_node)
 	Initialize(root_node)
 	root_node.Receive(1)

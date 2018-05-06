@@ -60,10 +60,10 @@ func Connect(from node, to node) {
 	to.addInput(from)
 }
 
-// basicNode provides a common implementation of the node interface's
+// BasicNode provides a common implementation of the node interface's
 // Inputs, Outputs, and Emit methods.
-// basicNode is abstract.  It should not be instantiated.
-type basicNode struct {
+// BasicNode is abstract.  It should not be instantiated.
+type BasicNode struct {
 	node
 	label   string
 	inputs  []node
@@ -71,7 +71,7 @@ type basicNode struct {
 }
 
 // Label is part of the node interface.
-func (n *basicNode) Label() string {
+func (n *BasicNode) Label() string {
 	if n.label == "" {
 		return fmt.Sprintf("%s-%x",
 			reflect.TypeOf(n).Name(),
@@ -81,56 +81,62 @@ func (n *basicNode) Label() string {
 }
 
 // Inputs is part of the node interface.
-func (n *basicNode) Inputs() []node {
+func (n *BasicNode) Inputs() []node {
 	return n.inputs
 }
 
 // Outputs is part of the node interface.
-func (n *basicNode) Outputs() []node {
+func (n *BasicNode) Outputs() []node {
 	return n.outputs
 }
 
-func (n1 *basicNode) addInput(n2 node) {
+func (n1 *BasicNode) addInput(n2 node) {
 	n1.inputs = append(n1.inputs, n2)
 }
 
-func (n1 *basicNode) addOutput(n2 node) {
+func (n1 *BasicNode) addOutput(n2 node) {
 	n1.outputs = append(n1.outputs, n2)
 }
 
 // Emit is part of the node interface.
-func (n *basicNode) Emit(item interface{}) {
+func (n *BasicNode) Emit(item interface{}) {
 	for _, o := range n.outputs {
 		o.Receive(item)
 	}
 }
 
 // Receive  is part of the node interface.
-func (n *basicNode) Receive(interface{}) {
-	panic("basicNode.Receive")
+func (n *BasicNode) Receive(interface{}) {
+	panic("BasicNode.Receive")
 }
 
 // InitializeNode is part of the node interface.
-func (n *basicNode) InitializeNode() {
+func (n *BasicNode) InitializeNode() {
 	// Defualt implementation is to do nothing.
 }
 
 // IsValid is part of the node interface.
-func (n *basicNode) IsValid() bool {
+func (n *BasicNode) IsValid() bool {
 	// Dummy method
-	panic("basicNode is abstract.  It should not have been instantiated.")
+	panic("BasicNode is abstract.  It should not have been instantiated.")
 }
 
-func (n *basicNode) AddListener(func(interface{})) {
-	panic("basicNode doesn't support AddListener")
+func (n *BasicNode) AddListener(func(interface{})) {
+	panic("BasicNode doesn't support AddListener")
 }
 
 // ActionNode is a node that can perform some action on its input item,
 // like construct and assert a fact.
 type ActionNode struct {
 	// node
-	basicNode
+	BasicNode
 	actionFunction func(item interface{})
+}
+
+func MakeActionNode(actionFunction func(item interface{})) *ActionNode {
+	return &ActionNode{
+		actionFunction: actionFunction,
+	}
 }
 
 // Receive is part of the Node interface.
@@ -149,8 +155,12 @@ func (n *ActionNode) IsValid() bool {
 // by a TestNode are only Emited if they satisfy a test function.
 type TestNode struct {
 	// node
-	basicNode
+	BasicNode
 	testFunction func(interface{}) bool
+}
+
+func MakeTestNode(testFunction func(interface{}) bool) *TestNode {
+	return &TestNode{ testFunction: testFunction }
 }
 
 // Receive is part of the node interface.
@@ -171,7 +181,7 @@ func (n *TestNode) IsValid() bool {
 // items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
 	// node
-	basicNode
+	BasicNode
 	items     []interface{}
 	listeners []func(interface{})
 }
@@ -235,7 +245,7 @@ func (c *cursor) Next() (interface{}, bool) {
 // Emiting the cross-product.
 type JoinNode struct {
 	// node
-	basicNode
+	BasicNode
 }
 
 // IsValid is part of the Node interface.
