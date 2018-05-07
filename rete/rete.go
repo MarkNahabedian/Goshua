@@ -175,6 +175,33 @@ func (n *TestNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
 
+
+// FunctionNode calls function on the incoming item.  It can
+// conditionally Emit that item or something else.
+type FunctionNode struct {
+	// node
+	BasicNode
+    function func(node, interface{})
+}
+
+func MakeFunctionNode(label string, function func(node, interface{})) {
+	return &FunctionNode{
+		label: label,
+        function: function,
+	}
+}
+
+// Receive is part of the node interface.
+func (n *FunctionNode) Receive(item interface{}) {
+	n.function(n, item)
+}
+
+// IsValid is part of the Node interface.
+func (n *FunctionNode) IsValid() bool {
+	return len(n.Inputs()) == 1
+}
+
+
 // BufferNode collects items into a buffer.  Listener functions can
 // be registered to be called on each item as it is received.
 // BufferNode also provides cursors for iterating over the collected
