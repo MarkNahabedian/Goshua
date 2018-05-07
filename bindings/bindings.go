@@ -88,3 +88,54 @@ func (b *bindings) Bind(v goshua.Variable, other interface{}) (goshua.Bindings, 
 		value, hasValue,
 		b.ply)}, true
 }
+
+// Unify allows us to unify two sets of bindings.
+func (b1 *bindings) Unify(item interface{}, b3 goshua.Bindings, continuation func(goshua.Bindings)) {
+	b2, ok := item.(*bindings)
+	if !ok {
+		return
+	}
+	merged := b3
+	// Try to merge bindinbgs from b1 and b2 into b3.  Give up if there's a contradiction.
+	mergeFrom := func(b *bindings) bool {
+		for p := b.ply; p != nil; p = p.Previous() {
+			vars := make(map[goshua.Variable]bool)
+			if p.HasValue() {
+				val := p.Value()
+				p.GetVariables(vars)
+				for v, has := range vars {
+					if has {
+						merged, ok = merged.Bind(v, val)
+						if !ok {
+							return false
+						}
+					}
+				}
+			} else {
+				var first goshua.Variable
+				p.GetVariables(vars)
+				for v, has := range vars {
+					if !has {
+						continue
+					}
+					if first == nil {
+						first = v
+					} else {
+						merged, ok = merged.Bind(first, v)
+						if !ok {
+							return false
+						}
+					}
+				}
+			}
+		}
+		return true
+	}
+	if !mergeFrom(b1) {
+		return
+	}
+	if !mergeFrom(b2) {
+		return
+	}
+	continuation(merged)
+}

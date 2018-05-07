@@ -62,6 +62,9 @@ type Variable interface {
 
 // Bindings manages the binding of logic variables.
 type Bindings interface {
+	// We want to be able to unify one set of bindings to another.
+	Unifier
+
 	// Bind returns a new Bindings which associates the given variable with
 	// other and inherits the previous bindings of the receiver.  Other could
 	// be another Variable, in which case the caller is asserting that variable

@@ -6,6 +6,7 @@ import "testing"
 import "goshua/goshua"
 import _ "goshua/variables"
 import _ "goshua/equality"
+import _ "goshua/unification"
 
 func TestSimpleBinding(t *testing.T) {
 	s := goshua.NewScope()
@@ -125,4 +126,89 @@ func TestLogicVariables(t *testing.T) {
 	if err := expectBound(v3, want); err != nil {
 		t.Errorf("%s", err)
 	}
+}
+
+func TestUnify(t *testing.T) {
+	s := goshua.NewScope()
+	v0 := s.Lookup("v0")
+	v1 := s.Lookup("v1")
+	v2 := s.Lookup("v2")
+	v3 := s.Lookup("v3")
+	v4 := s.Lookup("v4")
+
+	b0 := goshua.EmptyBindings()
+	b1 := goshua.EmptyBindings()
+	b2 := goshua.EmptyBindings()
+
+	bind := func(b goshua.Bindings, v goshua.Variable, val interface{}) goshua.Bindings {
+		var ok bool
+		if b, ok = b.Bind(v, val); !ok {
+			t.Errorf("binding %s to %v failed", v.Name(), val)
+		}
+		return b
+	}
+
+	b0 = bind(b0, v0, 0)
+	b1 = bind(b1, v1, v2)
+	b1 = bind(b1, v0, v4)
+	b2 = bind(b2, v3, 3)
+	b2 = bind(b2, v2, v3)
+
+	var unified goshua.Bindings = nil
+	goshua.Unify(b1, b2, b0, func(b goshua.Bindings) {
+		unified = b
+	})
+
+	if unified == nil {
+		t.Errorf("Unifiy failed")
+	}
+
+	expectBound := func(v goshua.Variable, want interface{}) error {
+		val, ok := unified.Get(v)
+		if !ok {
+			return fmt.Errorf("%s isn't bound", v)
+		}
+		eq, err := goshua.Equal(val, want)
+		if err != nil {
+			return err
+		}
+		if !eq {
+			return fmt.Errorf("%s should have value %#v, not %#v", v, want, val)
+		}
+		return nil
+	}
+
+	expectBound(v0, 0)
+	expectBound(v1, 3)
+	expectBound(v2, 3)
+	expectBound(v3, 3)
+	expectBound(v4, 0)
+}
+
+func TestUnifyFail(t *testing.T) {
+	s := goshua.NewScope()
+	v0 := s.Lookup("v0")
+	v1 := s.Lookup("v1")
+	v2 := s.Lookup("v2")
+
+	b0 := goshua.EmptyBindings()
+	b1 := goshua.EmptyBindings()
+	b2 := goshua.EmptyBindings()
+
+	bind := func(b goshua.Bindings, v goshua.Variable, val interface{}) goshua.Bindings {
+		var ok bool
+		if b, ok = b.Bind(v, val); !ok {
+			t.Errorf("binding %s to %v failed", v.Name(), val)
+		}
+		return b
+	}
+
+	b0 = bind(b0, v0, 0)
+	b1 = bind(b1, v1, v2)
+	b2 = bind(b2, v2, 2)
+	b2 = bind(b2, v0, v1)
+
+	goshua.Unify(b1, b2, b0, func(b goshua.Bindings) {
+		t.Errorf("Unifiy should have failed")
+	})
 }
