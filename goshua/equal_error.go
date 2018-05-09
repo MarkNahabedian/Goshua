@@ -9,7 +9,7 @@ type equalError struct {
 }
 
 func (e *equalError) Error() string {
-	return fmt.Sprintf("goshual.Equal doesn't know how to compare %T with %t",
+	return fmt.Sprintf("goshual.Equal doesn't know how to compare %T with %T",
 		e.arg1, e.arg2)
 }
 
