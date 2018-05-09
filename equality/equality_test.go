@@ -67,3 +67,31 @@ func TestString(t *testing.T) {
 	test(t, true, "abcdef", "abcdef")
 	test(t, false, "abcdef", "ABCDEF")
 }
+
+type testStruct struct {
+	A int
+	B string
+	C *testStruct
+}
+
+func TestStruct(t *testing.T) {
+	ts1 := testStruct{
+		A: 1,
+		B: "foo",
+	}
+	ts2 := testStruct{
+		A: 1,
+		B: "foo",
+	}
+	ts3 := testStruct{
+		A: 1,
+		B: "bar",
+	}
+	test(t, true, ts1, ts1)
+	test(t, true, ts1, ts2)
+	test(t, false, ts1, ts3)
+	test(t, true, &ts1, &ts1)
+	test(t, true, &ts1, &ts2)
+	test(t, false, &ts1, &ts3)
+
+}
