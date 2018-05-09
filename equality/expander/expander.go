@@ -126,10 +126,10 @@ import "reflect"
 
 const equalPrototype = `
 package equality
-func functionName(thing1, thing2 interface{}) bool {
+func functionName(thing1, thing2 interface{}) (bool, error) {
     v1 := reflect.ValueOf(thing1).targetType()
     v2 := reflect.ValueOf(thing2).targetType()
-    return v1 == v2
+    return v1 == v2, nil
 }
 
 func init() {
@@ -167,22 +167,22 @@ func doEqualityGroups(fset *token.FileSet, file *ast.File) {
 
 const signedUnsignedPrototype = `
 package equality
-func integer_equal_signed_unsigned(signed, unsigned interface{}) bool {
+func integer_equal_signed_unsigned(signed, unsigned interface{}) (bool, error) {
      s := reflect.ValueOf(signed).Int()
      u := reflect.ValueOf(unsigned).Uint()
      if s < 0 {
-     	return false
+     	return false, nil
      }
      if (u & (uint64(1) << 63)) != 0 {
-     	return false
+     	return false, nil
      }
      if int64(u) - s != 0 {
-     	return false
+     	return false, nil
      }
-     return true
+     return true, nil
 }
 
-func integer_equal_unsigned_signed(unsigned, signed interface{}) bool {
+func integer_equal_unsigned_signed(unsigned, signed interface{}) (bool, error) {
      return integer_equal_signed_unsigned(signed, unsigned)
 }
 

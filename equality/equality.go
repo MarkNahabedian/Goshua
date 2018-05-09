@@ -9,16 +9,16 @@ func makeBiadicKey(kind1, kind2 reflect.Kind) uint16 {
 	return uint16((kind1 << 8) | kind2)
 }
 
-var biadicDispatch = make(map[uint16]func(interface{}, interface{}) bool)
+var biadicDispatch = make(map[uint16]func(interface{}, interface{}) (bool, error))
 
 func equal(a, b interface{}) (bool, error) {
-	f, ok := biadicDispatch[makeBiadicKey(
-		reflect.ValueOf(a).Kind(),
-		reflect.ValueOf(b).Kind())]
+	va := reflect.ValueOf(a)
+	vb := reflect.ValueOf(b)
+	f, ok := biadicDispatch[makeBiadicKey(va.Kind(), vb.Kind())]
 	if !ok {
 		return false, goshua.NewEqualError(a, b)
 	}
-	return f(a, b), nil
+	return f(a, b)
 }
 
 func init() {
