@@ -6,6 +6,14 @@ import "log"
 import "reflect"
 import "goshua/goshua"
 
+func underlyingType(t reflect.Type) reflect.Type {
+	if t.Kind() == reflect.Ptr {
+		return t.Elem()
+	}
+	return t
+}
+
+
 // query implements the Unifier interface to test and extract fields
 // of a struct.
 type query struct {
@@ -19,6 +27,9 @@ type query struct {
 // Variables.  If itself is provided that variable will be bound to the object
 // itself that the Query matched.
 func newQuery(t reflect.Type, itself goshua.Variable, fieldValues map[string]interface{}) goshua.Query {
+	if underlyingType(t).Kind() != reflect.Struct {
+		panic("Query only works against struct types.")
+	}
 	q := query{
 		structType: t,
 		itself:     itself,
@@ -33,20 +44,19 @@ func init() {
 
 func (q *query) IsQuery() bool { return true }
 
+
 // Unify implements goshua.Unify for query.
 // query can unify against a struct of its specified type, or with another
 // query of the same specified struct type.  Keys in a query which do not
 // match a filed of that struct type are ignored.
 func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(goshua.Bindings)) {
-	t := q.structType
+	t := underlyingType(q.structType)
 	// query should also be able to unify against another query
-	thingQ, ok := thing.(query)
-	if ok {
-		if t != thingQ.structType {
+	if thingQ, ok := thing.(query); ok {
+		if t != underlyingType(thingQ.structType) {
 			return
 		}
 		if t.Kind() != reflect.Struct {
-			log.Printf("Query for non-struct type %#v", t)
 			return
 		}
 		for i := 0; i < t.NumField(); i++ {
@@ -69,12 +79,16 @@ func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(go
 		continuation(b)
 		return
 	}
+	// Unifying the Query against a struct:
 	v := reflect.ValueOf(thing)
-	if v.Kind() != reflect.Struct {
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	thingType := v.Type()
+	if thingType.Kind() != reflect.Struct {
 		// query only unifies with struct
 		return
 	}
-	thingType := reflect.TypeOf(thing)
 	if t != thingType {
 		return
 	}
@@ -102,6 +116,7 @@ func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(go
 		if b1, ok := b.Bind(q.itself, thing); ok {
 			continuation(b1)
 		} else {
+			log.Printf("Binding %v failed", q.itself)
 		}
 	}
 }

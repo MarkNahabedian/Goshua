@@ -29,18 +29,27 @@ var _ goshua.Query = newQuery(reflect.TypeOf(testObject), nil, map[string]interf
 func TestUnifyQueryStruct(t *testing.T) {
 	scope := goshua.NewScope()
 	v := scope.Lookup("B")
-	o := testStruct{
+	o := &testStruct{
 		A: 16,
 		B: "foo",
 	}
-	q := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
+	itself := scope.Lookup("itself")
+	q := goshua.NewQuery(reflect.TypeOf(o), itself, map[string]interface{}{
 		"A": 16,
 		"B": v,
 	})
 	tc := unification.MakeTestContinuation(t)
 	goshua.Unify(q, o, goshua.EmptyBindings(), tc.Continuation)
 	if !tc.WasContinued() {
-		t.Errorf("Failed to unify Query and struct")
+		t.Fatalf("Failed to unify Query and struct")
+	}
+	if val, ok := tc.Bindings().Get(itself); !ok {
+	  	t.Errorf("%v should have been bound", itself)
+		tc.Bindings().Dump()
+	} else if eq, err := goshua.Equal(val, reflect.ValueOf(o).Interface()); err != nil {
+		t.Fatalf("%s", err.Error())
+	} else if !eq {
+		t.Errorf("%v bound to wrong value, got %#v, want %#v", itself, val, o)
 	}
 	if val, ok := tc.Bindings().Get(v); !ok {
 		t.Errorf("Variable %s should have been bound", v.Name())
