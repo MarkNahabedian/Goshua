@@ -19,8 +19,8 @@ func TestActionNode(t *testing.T) {
 func TestTestNode(t *testing.T) {
 	s := ""
 	n1 := MakeTestNode(func(item interface{}) bool {
-			return item.(int) == 4
-		})
+		return item.(int) == 4
+	})
 	n2 := MakeActionNode(
 		func(item interface{}) {
 			s = fmt.Sprintf("%v", item)
@@ -77,7 +77,7 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestJoinNode(t *testing.T) {
-	root_node := MakeTestNode(func(item interface{}) bool { return true },)
+	root_node := MakeTestNode(func(item interface{}) bool { return true })
 	n1 := MakeTestNode(
 		func(item interface{}) bool {
 			_, is := item.(string)

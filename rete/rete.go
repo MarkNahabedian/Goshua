@@ -4,18 +4,18 @@ package rete
 import "fmt"
 import "reflect"
 
-type node interface {
+type Node interface {
 	// Label returns the node's label.
 	Label() string
 
 	// Inputs returns thenodes that can send data to this node.
-	Inputs() []node
+	Inputs() []Node
 
 	// Outputs returns the nodes that this node can output to.
-	Outputs() []node
+	Outputs() []Node
 
-	addInput(node)
-	addOutput(node)
+	addInput(Node)
+	addOutput(Node)
 
 	// Emit outputs item to this node's Outputs.  It does so by calling
 	// Receive on each Output.
@@ -38,10 +38,10 @@ type node interface {
 
 // Initialize should be called on the root node of a rete after the rete is
 // constructed but before it is used to make sure every node is ready to run.
-func Initialize(n node) {
-	initialized := make(map[node]bool)
-	var walker func(node)
-	walker = func(n node) {
+func Initialize(n Node) {
+	initialized := make(map[Node]bool)
+	var walker func(Node)
+	walker = func(n Node) {
 		if initialized[n] {
 			return
 		}
@@ -55,7 +55,7 @@ func Initialize(n node) {
 }
 
 // Connect arranges for from to output to to.
-func Connect(from node, to node) {
+func Connect(from Node, to Node) {
 	from.addOutput(to)
 	to.addInput(from)
 }
@@ -64,10 +64,10 @@ func Connect(from node, to node) {
 // Inputs, Outputs, and Emit methods.
 // BasicNode is abstract.  It should not be instantiated.
 type BasicNode struct {
-	node
+	Node
 	label   string
-	inputs  []node
-	outputs []node
+	inputs  []Node
+	outputs []Node
 }
 
 // Label is part of the node interface.
@@ -81,20 +81,20 @@ func (n *BasicNode) Label() string {
 }
 
 // Inputs is part of the node interface.
-func (n *BasicNode) Inputs() []node {
+func (n *BasicNode) Inputs() []Node {
 	return n.inputs
 }
 
 // Outputs is part of the node interface.
-func (n *BasicNode) Outputs() []node {
+func (n *BasicNode) Outputs() []Node {
 	return n.outputs
 }
 
-func (n1 *BasicNode) addInput(n2 node) {
+func (n1 *BasicNode) addInput(n2 Node) {
 	n1.inputs = append(n1.inputs, n2)
 }
 
-func (n1 *BasicNode) addOutput(n2 node) {
+func (n1 *BasicNode) addOutput(n2 Node) {
 	n1.outputs = append(n1.outputs, n2)
 }
 
@@ -160,7 +160,7 @@ type TestNode struct {
 }
 
 func MakeTestNode(testFunction func(interface{}) bool) *TestNode {
-	return &TestNode{ testFunction: testFunction }
+	return &TestNode{testFunction: testFunction}
 }
 
 // Receive is part of the node interface.
@@ -175,20 +175,20 @@ func (n *TestNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
 
-
 // FunctionNode calls function on the incoming item.  It can
 // conditionally Emit that item or something else.
 type FunctionNode struct {
 	// node
 	BasicNode
-    function func(node, interface{})
+	function func(Node, interface{})
 }
 
-func MakeFunctionNode(label string, function func(node, interface{})) {
-	return &FunctionNode{
-		label: label,
-        function: function,
+func MakeFunctionNode(label string, function func(Node, interface{})) *FunctionNode {
+	n := &FunctionNode{
+		function: function,
 	}
+	n.label = label
+	return n
 }
 
 // Receive is part of the node interface.
@@ -200,7 +200,6 @@ func (n *FunctionNode) Receive(item interface{}) {
 func (n *FunctionNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
-
 
 // BufferNode collects items into a buffer.  Listener functions can
 // be registered to be called on each item as it is received.
