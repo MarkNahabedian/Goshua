@@ -3,6 +3,7 @@
 package query
 
 import "log"
+import "fmt"
 import "reflect"
 import "goshua/goshua"
 
@@ -27,8 +28,9 @@ type query struct {
 // Variables.  If itself is provided that variable will be bound to the object
 // itself that the Query matched.
 func newQuery(t reflect.Type, itself goshua.Variable, fieldValues map[string]interface{}) goshua.Query {
-	if underlyingType(t).Kind() != reflect.Struct {
-		panic("Query only works against struct types.")
+	t = underlyingType(t)
+	if t.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("Query only works against struct types. %v %v", t, t.Kind()))
 	}
 	q := query{
 		structType: t,

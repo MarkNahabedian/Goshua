@@ -20,11 +20,25 @@ var testObject = testStruct{
 	B: "foobar",
 }
 
+
+func TestUnderlyingType(t *testing.T) {
+	o := testStruct{
+		A: 1,
+		B: "foo",
+	}
+	ut := underlyingType(reflect.TypeOf(&o))
+	if ut != reflect.TypeOf(o) {
+		t.Errorf("underlyingType failed, %T, %v", o, ut)
+	}
+}
+
+
 // Compile time check that *variable implements goshua.Variable.
 var _ goshua.Query = newQuery(reflect.TypeOf(testObject), nil, map[string]interface{}{
 	"A": 12,
 	"B": "foobar",
 })
+
 
 func TestUnifyQueryStruct(t *testing.T) {
 	scope := goshua.NewScope()
