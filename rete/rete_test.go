@@ -115,7 +115,7 @@ func TestJoinNode(t *testing.T) {
 	output_node := MakeActionNode(
 		func(item interface{}) {
 			t.Logf("joined %#v", item)
-			pair := item.([]interface{})
+			pair := item.([2]interface{})
 			s := pair[0].(string)
 			i := pair[1].(int)
 			outputs = append(outputs, fmt.Sprintf("%s%d", s, i))

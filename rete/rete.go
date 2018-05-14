@@ -223,6 +223,10 @@ func (n *BufferNode) Emit(item interface{}) {
 }
 */
 
+func (n *BufferNode) Count() int {
+	return len(n.items)
+}
+
 // AddListener registers f as a function to be called on an item
 // when it is Received by the BufferNode.
 func (n *BufferNode) AddListener(f func(interface{})) {
@@ -268,7 +272,7 @@ func (c *cursor) Next() (interface{}, bool) {
 }
 
 // JoinNode combines the items in its two input BufferNodes pairwise,
-// Emiting the cross-product.
+// Emiting the cross-product as successive [2]interface{} arrays..
 type JoinNode struct {
 	// node
 	BasicNode
@@ -297,9 +301,9 @@ func (n *JoinNode) InitializeNode() {
 			c := otherInput.GetCursor()
 			for item2, present := c.Next(); present; item2, present = c.Next() {
 				if inputIndex == 0 {
-					n.Emit([]interface{}{item1, item2})
+					n.Emit([2]interface{}{item1, item2})
 				} else {
-					n.Emit([]interface{}{item2, item1})
+					n.Emit([2]interface{}{item2, item1})
 				}
 			}
 		}
