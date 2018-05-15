@@ -43,12 +43,15 @@ func TestBuffer(t *testing.T) {
 	Connect(n1, n2)
 	s1 := ""
 	s2 := ""
-	n2.AddListener(func(item interface{}) {
+	a1 := MakeActionNode(func(item interface{}) {
 		s1 = fmt.Sprintf("%v", item)
 	})
-	n2.AddListener(func(item interface{}) {
+	a2 := MakeActionNode(func(item interface{}) {
 		s2 = fmt.Sprintf("%v", item)
 	})
+	Connect(n2, a1)
+	Connect(n2, a2)
+
 	n1.Receive(2)
 	if s1 != "2" {
 		t.Errorf("First listener not invoked: %s", s1)
@@ -78,6 +81,7 @@ func TestBuffer(t *testing.T) {
 
 func TestJoinNode(t *testing.T) {
 	root_node := MakeTestNode(func(item interface{}) bool { return true })
+	root_node.label = "root"
 	n1 := MakeTestNode(
 		func(item interface{}) bool {
 			_, is := item.(string)
@@ -89,10 +93,9 @@ func TestJoinNode(t *testing.T) {
 		func(item interface{}) {
 			t.Logf("log1: %#v", item)
 		})
+	log1.label = "log1"
 	Connect(n1, log1)
-	bn1 := &BufferNode{}
-	bn1.label = "bn1"
-	Connect(log1, bn1)
+
 	n2 := MakeTestNode(
 		func(item interface{}) bool {
 			_, is := item.(int)
@@ -104,13 +107,10 @@ func TestJoinNode(t *testing.T) {
 		func(item interface{}) {
 			t.Logf("log2: %#v", item)
 		})
+	log2.label = "log2"
 	Connect(n2, log2)
-	bn2 := &BufferNode{}
-	bn2.label = "bn2"
-	Connect(log2, bn2)
-	jn := &JoinNode{}
-	Connect(bn1, jn)
-	Connect(bn2, jn)
+
+	jn := Join("join", log1, log2)
 	outputs := []string{}
 	output_node := MakeActionNode(
 		func(item interface{}) {
@@ -122,6 +122,11 @@ func TestJoinNode(t *testing.T) {
 		})
 	Connect(jn, output_node)
 	Initialize(root_node)
+
+	Walk(root_node, func(n Node) {
+		t.Logf(`node "%s" %T`, n.Label(), n)
+	})
+
 	root_node.Receive(1)
 	root_node.Receive(2)
 	root_node.Receive("a")
@@ -132,14 +137,13 @@ func TestJoinNode(t *testing.T) {
 	}
 	if len(expect) != len(outputs) {
 		t.Errorf("wrong count: want %v, got %v", expect, outputs)
-	}
-	for i, exp := range expect {
-		if exp != outputs[i] {
-			t.Errorf("Values differ: want %v, got %v", exp, outputs[i])
+	} else {
+		for i, exp := range expect {
+			if exp != outputs[i] {
+				t.Errorf("Values differ: want %v, got %v", exp, outputs[i])
+			}
 		}
 	}
-	t.Logf("bn1: %d listeners", len(bn1.listeners))
-	t.Logf("bn2: %d listeners", len(bn2.listeners))
-	t.Logf("bn1 items: %#v", bn1.items)
-	t.Logf("bn2 items: %#v", bn2.items)
+//	t.Logf("bn1 items: %#v", bn1.items)
+//	t.Logf("bn2 items: %#v", bn2.items)
 }

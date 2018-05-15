@@ -30,10 +30,6 @@ type Node interface {
 	// InitializeNode should be called once the entire rete is constructed but
 	// before any data is entered.
 	InitializeNode()
-
-	// Invoke a function when a node receives an item.  Only some nodes
-	// support this.
-	AddListener(func(interface{}))
 }
 
 // Initialize should be called on the root node of a rete after the rete is
@@ -100,14 +96,14 @@ func (n1 *BasicNode) addOutput(n2 Node) {
 
 // Emit is part of the node interface.
 func (n *BasicNode) Emit(item interface{}) {
-	for _, o := range n.outputs {
+	for _, o := range n.Outputs() {
 		o.Receive(item)
 	}
 }
 
 // Receive  is part of the node interface.
 func (n *BasicNode) Receive(interface{}) {
-	panic("BasicNode.Receive")
+	panic(fmt.Sprintf("BasicNode.Receive on %T", n))
 }
 
 // InitializeNode is part of the node interface.
@@ -119,10 +115,6 @@ func (n *BasicNode) InitializeNode() {
 func (n *BasicNode) IsValid() bool {
 	// Dummy method
 	panic("BasicNode is abstract.  It should not have been instantiated.")
-}
-
-func (n *BasicNode) AddListener(func(interface{})) {
-	panic("BasicNode doesn't support AddListener")
 }
 
 // ActionNode is a node that can perform some action on its input item,
@@ -201,15 +193,13 @@ func (n *FunctionNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
 
-// BufferNode collects items into a buffer.  Listener functions can
-// be registered to be called on each item as it is received.
-// BufferNode also provides cursors for iterating over the collected
+// BufferNode collects items into a buffer.
+// BufferNode provides cursors for iterating over the collected
 // items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
 	// node
 	BasicNode
 	items     []interface{}
-	listeners []func(interface{})
 }
 
 // IsValid is part of the Node interface.
@@ -217,32 +207,18 @@ func (n *BufferNode) IsValid() bool {
 	return len(n.Inputs()) == 1
 }
 
-/*
-func (n *BufferNode) Emit(item interface{}) {
-	panic("Emit called on a BufferNode")
-}
-*/
-
 func (n *BufferNode) Count() int {
 	return len(n.items)
 }
 
-// AddListener registers f as a function to be called on an item
-// when it is Received by the BufferNode.
-func (n *BufferNode) AddListener(f func(interface{})) {
-	n.listeners = append(n.listeners, f)
-}
-
 // Receive is part of the Node interface.
 // When a BufferNode receives an item each of its cursors
-// calls its newItemFunction so that the JoinNodfe that
+// calls its newItemFunction so that the JoinNode that
 // created that cursor can attempt to join that item with
 // each item in the other branch of the JoinNode's BufferNode.
 func (n *BufferNode) Receive(item interface{}) {
 	n.items = append(n.items, item)
-	for _, l := range n.listeners {
-		l(item)
-	}
+	n.Emit(item)
 }
 
 type cursor struct {
@@ -260,6 +236,7 @@ func (n *BufferNode) GetCursor() *cursor {
 	return &c
 }
 
+
 // Next returns the item that the cursor is currently referring to and
 // advances the cursor.  Next returns nil, false if there are no more items.
 func (c *cursor) Next() (interface{}, bool) {
@@ -270,6 +247,7 @@ func (c *cursor) Next() (interface{}, bool) {
 	c.index += 1
 	return i, true
 }
+
 
 // JoinNode combines the items in its two input BufferNodes pairwise,
 // Emiting the cross-product as successive [2]interface{} arrays..
@@ -284,30 +262,120 @@ func (n *JoinNode) IsValid() bool {
 		return false
 	}
 	// The inputs of a JoinNode must be BufferNodes.
-	if _, ok := n.Inputs()[0].(*BufferNode); !ok {
+	if _, ok := n.Inputs()[0].(*JoinSide); !ok {
 		return false
 	}
-	if _, ok := n.Inputs()[1].(*BufferNode); !ok {
+	if _, ok := n.Inputs()[1].(*JoinSide); !ok {
 		return false
 	}
 	return true
 }
 
-// InitializeNode is part of the node interface
-func (n *JoinNode) InitializeNode() {
-	listener := func(inputIndex int) func(interface{}) {
-		return func(item1 interface{}) {
-			otherInput := n.Inputs()[(inputIndex+1)%2].(*BufferNode)
-			c := otherInput.GetCursor()
-			for item2, present := c.Next(); present; item2, present = c.Next() {
-				if inputIndex == 0 {
-					n.Emit([2]interface{}{item1, item2})
-				} else {
-					n.Emit([2]interface{}{item2, item1})
-				}
-			}
+
+type JoinSide struct {
+	joinNode *JoinNode
+	input *BufferNode
+	other *JoinSide
+	swap bool
+}
+
+func (n *JoinSide) Label() string {
+	var side string
+	if n.swap {
+		side = "B"
+	} else {
+		side = "A"
+	}
+	return fmt.Sprintf("%s - %s", n.joinNode.Label(), side)
+}
+
+func (n *JoinSide) Inputs() []Node {
+	return []Node{ n.input }
+}
+
+func (n *JoinSide) Outputs() []Node {
+	return []Node{ n.joinNode }
+}
+
+func (n *JoinSide) addInput(n2 Node) {
+	panic("JoinSide.addInput called")
+}
+
+func (n *JoinSide) addOutput(n2 Node) {
+	panic("JoinSide.addOutput called")
+}
+
+func (n *JoinSide) Emit(item interface{}) {
+	n.joinNode.Emit(item)
+}
+
+func (n *JoinSide) IsValid() bool {
+	return true
+}
+
+func (n *JoinSide) InitializeNode() {
+}
+
+func (n *JoinSide) Receive(item1 interface{}) {
+	c := n.other.input.GetCursor()
+	for item2, present := c.Next(); present; item2, present = c.Next() {
+		if n.swap {
+			n.Emit([2]interface{}{item2, item1})
+		} else {
+			n.Emit([2]interface{}{item1, item2})
 		}
 	}
-	n.Inputs()[0].AddListener(listener(0))
-	n.Inputs()[1].AddListener(listener(1))
+}
+
+
+func getBuffered(n Node) *BufferNode {
+	if b, ok := n.(*BufferNode); ok {
+		return b
+	}
+	for _, o := range n.Outputs() {
+		if b, ok := o.(*BufferNode); ok {
+			return b
+		}
+	}
+	bn := &BufferNode{}
+	bn.label = fmt.Sprintf("%s - buffered", n.Label())
+	Connect(n, bn)
+	return bn
+}
+
+func Join(label string, a, b Node) *JoinNode {
+	jn := &JoinNode{}
+	jn.label = label
+	aSide := &JoinSide{
+		joinNode: jn,
+		input: getBuffered(a),
+		swap: false,
+	}
+	aSide.input.addOutput(aSide)
+	bSide := &JoinSide{
+		joinNode: jn,
+		input: getBuffered(b),
+		swap: true,
+	}
+	bSide.input.addOutput(bSide)
+	aSide.other = bSide
+	bSide.other = aSide
+	jn.addInput(aSide)
+	jn.addInput(bSide)
+	return jn	
+}
+
+
+func Walk(root Node, f func(n Node)) {
+	visited := make(map[Node]bool)
+	var visit func(Node)
+	visit = func(n Node) {
+		if visited[n] { return }
+		f(n)
+		visited[n] = true
+		for _, o := range n.Outputs() {
+			visit(o)
+		}
+	}
+	visit(root)
 }
