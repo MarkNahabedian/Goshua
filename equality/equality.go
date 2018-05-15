@@ -21,6 +21,10 @@ func equal(a, b interface{}) (bool, error) {
 	return f(a, b)
 }
 
+type CanEqual interface {
+	GoshuaEqual(interface{}) (bool, error)
+}
+
 func init() {
 	goshua.Equal = equal
 }

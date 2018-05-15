@@ -24,7 +24,11 @@ func equal_ptr_ptr(a, b interface{}) (bool, error) {
 		return false, fmt.Errorf("dereferenced %v not valid", b)
 	}
 	if va.UnsafeAddr() == vb.UnsafeAddr() {
+		// Same object.
 		return true, nil
+	}
+	if o, ok := a.(CanEqual); ok {
+		return o.GoshuaEqual(b)
 	}
 	eq, err := goshua.Equal(va.Interface(), vb.Interface())
 	if err != nil {
