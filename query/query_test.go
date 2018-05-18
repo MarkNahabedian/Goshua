@@ -10,42 +10,32 @@ import _ "goshua/bindings"
 import _ "goshua/equality"
 
 type testStruct struct {
-	A int
-	B string
-	C *testStruct
+	a int
+	b string
+	c *testStruct
 }
 
-var testObject = testStruct{
-	A: 12,
-	B: "foobar",
+func (ts *testStruct) A() interface{} { return ts.a }
+func (ts *testStruct) B() interface{} { return ts.b }
+func (ts *testStruct) C() interface{} { return ts.c }
+
+var testObject = &testStruct{
+	a: 12,
+	b: "foobar",
 }
 
-
-func TestUnderlyingType(t *testing.T) {
-	o := testStruct{
-		A: 1,
-		B: "foo",
-	}
-	ut := underlyingType(reflect.TypeOf(&o))
-	if ut != reflect.TypeOf(o) {
-		t.Errorf("underlyingType failed, %T, %v", o, ut)
-	}
-}
-
-
-// Compile time check that *variable implements goshua.Variable.
+// Compile-time check that the value returned by newQuery is a goshua.Query.
 var _ goshua.Query = newQuery(reflect.TypeOf(testObject), nil, map[string]interface{}{
 	"A": 12,
 	"B": "foobar",
 })
 
-
 func TestUnifyQueryStruct(t *testing.T) {
 	scope := goshua.NewScope()
 	v := scope.Lookup("B")
 	o := &testStruct{
-		A: 16,
-		B: "foo",
+		a: 16,
+		b: "foo",
 	}
 	itself := scope.Lookup("itself")
 	q := goshua.NewQuery(reflect.TypeOf(o), itself, map[string]interface{}{
@@ -58,7 +48,7 @@ func TestUnifyQueryStruct(t *testing.T) {
 		t.Fatalf("Failed to unify Query and struct")
 	}
 	if val, ok := tc.Bindings().Get(itself); !ok {
-	  	t.Errorf("%v should have been bound", itself)
+		t.Errorf("%v should have been bound", itself)
 		tc.Bindings().Dump()
 	} else if eq, err := goshua.Equal(val, reflect.ValueOf(o).Interface()); err != nil {
 		t.Fatalf("%s", err.Error())
@@ -68,17 +58,17 @@ func TestUnifyQueryStruct(t *testing.T) {
 	if val, ok := tc.Bindings().Get(v); !ok {
 		t.Errorf("Variable %s should have been bound", v.Name())
 		tc.Bindings().Dump()
-	} else if eq, err := goshua.Equal(val, o.B); err != nil {
+	} else if eq, err := goshua.Equal(val, o.B()); err != nil {
 		t.Fatalf("%s", err.Error())
 	} else if !eq {
-		t.Errorf("Variable bound to wrong value, got %#v, want %#v", val, o.B)
+		t.Errorf("Variable bound to wrong value, got %#v, want %#v", val, o.b)
 	}
 }
 
 func TestFailUnifyQueryStruct(t *testing.T) {
-	o := testStruct{
-		A: 16,
-		B: "foo",
+	o := &testStruct{
+		a: 4,
+		b: "foo",
 	}
 	q := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
 		"A": 0,
@@ -94,46 +84,48 @@ func TestFailUnifyQueryStruct(t *testing.T) {
 func TestBindRecursiveStruct(t *testing.T) {
 }
 
-/*  depends on unifying maps, which is not yet implemented
 func TestUnifyQueryQuerySucceed(t *testing.T) {
-     scope := goshua.NewScope()
-     v := scope.Lookup("v")
-     o := testStruct {}
-     foo := "foo"
-     q1 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string] interface{} {
-       "A": 16,
-       "B": foo,
-     })
-     q2 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string] interface{} {
-       "A": 16,
-       "B": v,
-     })
-     tc := unification.MakeTestContinuation(t)
-     goshua.Unify(q1, q2, goshua.EmptyBindings(), tc.Continuation)
-     if !tc.WasContinued() {
-     	t.Errorf("Failed to unify two Queries")
-     } else if val, ok := tc.Bindings().Get(v); !ok {
-     	t.Errorf("Variable %s should have been bound", v.Name())
-	tc.Bindings().Dump()
-     } else if eq, ok := goshua.Equal(val, foo); !ok || !eq {
-       	t.Errorf("Variable bound to wrong value, got %#v, want %#v", val, foo)
-     }
+	scope := goshua.NewScope()
+	v := scope.Lookup("v")
+	o := &testStruct{}
+	foo := "foo"
+	q1 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
+		"A": 8,
+		"B": foo,
+	})
+	q2 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
+		"A": 8,
+		"B": v,
+	})
+	tc := unification.MakeTestContinuation(t)
+	goshua.Unify(q1, q2, goshua.EmptyBindings(), tc.Continuation)
+	if !tc.WasContinued() {
+		t.Errorf("Failed to unify two Queries")
+	} else if val, ok := tc.Bindings().Get(v); !ok {
+		t.Errorf("Variable %s should have been bound", v.Name())
+	} else if eq, err := goshua.Equal(val, foo); err != nil || !eq {
+		t.Errorf("Variable bound to wrong value, got %#v, want %#v.  %s", val, foo, err)
+	}
 }
-*/
 
 func TestUnifyQueryQueryFail(t *testing.T) {
-	o := testStruct{}
+	scope := goshua.NewScope()
+	v := scope.Lookup("v")
+	o := &testStruct{}
 	tc := unification.MakeTestContinuation(t)
 	q1 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
-		"A": 16,
+		"A": 2,
 		"B": "foo",
 	})
 	q2 := goshua.NewQuery(reflect.TypeOf(o), nil, map[string]interface{}{
-		"A": 16,
-		"B": "foo",
+		"A": 2,
+		"B": v,
 	})
-	goshua.Unify(q1, q2, goshua.EmptyBindings(), tc.Continuation)
+	b := goshua.EmptyBindings()
+	b, _ = b.Bind(v, "bar")
+	goshua.Unify(q1, q2, b, tc.Continuation)
 	if tc.WasContinued() {
+		tc.Bindings().Dump()
 		t.Errorf("queries should not have unified")
 	}
 }

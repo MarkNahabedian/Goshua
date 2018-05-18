@@ -7,35 +7,44 @@ import "fmt"
 import "reflect"
 import "goshua/goshua"
 
-func underlyingType(t reflect.Type) reflect.Type {
-	if t.Kind() == reflect.Ptr {
-		return t.Elem()
-	}
-	return t
-}
-
-
 // query implements the Unifier interface to test and extract fields
 // of a struct.
 type query struct {
 	structType reflect.Type
 	itself     goshua.Variable
-	fields     map[string]interface{}
+	// Map from a reader method name to an object to Unify the read value against.
+	matchers map[string]interface{}
 }
 
-// newQuery makes a Query for unifying against a struct of type t with field.
-// values as described in fieldValues.  The values in fieldValues can be
-// Variables.  If itself is provided that variable will be bound to the object
-// itself that the Query matched.
-func newQuery(t reflect.Type, itself goshua.Variable, fieldValues map[string]interface{}) goshua.Query {
-	t = underlyingType(t)
-	if t.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("Query only works against struct types. %v %v", t, t.Kind()))
-	}
+func matchersKey(method reflect.Method) string {
+	// We don't need the package because name is confined to the context
+	// of structType.
+	return method.Name
+}
+
+// newQuery makes a Query for unifying against an object of a specified type.
+// readerValues is a map from the names pf reader methods on that obkect (as
+// strings) to values or variables to be unified against.
+// If itself is provided that variable will be bound to the object itself
+// that the Query matched.
+func newQuery(t reflect.Type, itself goshua.Variable, readerValues map[string]interface{}) goshua.Query {
 	q := query{
 		structType: t,
 		itself:     itself,
-		fields:     fieldValues,
+		matchers:   make(map[string]interface{}),
+	}
+	for name, val := range readerValues {
+		if method, ok := t.MethodByName(name); ok {
+			q.matchers[matchersKey(method)] = val
+		} else {
+			/* Show available methods
+			for i := 0; i < t.NumMethod(); i++ {
+				m := t.Method(i)
+				log.Printf("%d: method %s.%s", i, m.PkgPath, m.Name)
+			}
+			*/
+			panic(fmt.Sprintf("No method %s for type %v", name, t))
+		}
 	}
 	return &q
 }
@@ -46,32 +55,33 @@ func init() {
 
 func (q *query) IsQuery() bool { return true }
 
-
 // Unify implements goshua.Unify for query.
 // query can unify against a struct of its specified type, or with another
 // query of the same specified struct type.  Keys in a query which do not
 // match a filed of that struct type are ignored.
 func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(goshua.Bindings)) {
-	t := underlyingType(q.structType)
+	t := q.structType
 	// query should also be able to unify against another query
-	if thingQ, ok := thing.(query); ok {
-		if t != underlyingType(thingQ.structType) {
+	if thingQ, ok := thing.(*query); ok {
+		if t != thingQ.structType {
+			// log.Printf("query types don't match %v %v", t, thingQ.structType)
 			return
 		}
-		if t.Kind() != reflect.Struct {
-			return
-		}
-		for i := 0; i < t.NumField(); i++ {
-			name := t.Field(i).Name
-			i1, ok1 := q.fields[name]
-			i2, ok2 := thingQ.fields[name]
+		for i := 0; i < t.NumMethod(); i++ {
+			method := t.Method(i)
+			i1, ok1 := q.matchers[matchersKey(method)]
+			i2, ok2 := thingQ.matchers[matchersKey(method)]
 			cont := false
 			if ok1 && ok2 {
 				goshua.Unify(i1, i2, b, func(b1 goshua.Bindings) {
 					b = b1
 					cont = true
 				})
+			} else if ok1 || ok2 {
+				log.Printf("%s matcher missing", method.Name)
+				return
 			} else {
+				// Neither query cares about this value.
 				continue
 			}
 			if !cont {
@@ -83,33 +93,24 @@ func (q *query) Unify(thing interface{}, b goshua.Bindings, continuation func(go
 	}
 	// Unifying the Query against a struct:
 	v := reflect.ValueOf(thing)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
 	thingType := v.Type()
-	if thingType.Kind() != reflect.Struct {
-		// query only unifies with struct
-		return
-	}
 	if t != thingType {
+		// log.Printf("Types don't match: %v, %v", t, thingType)
 		return
 	}
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Name
-		if i1, found := q.fields[name]; !found {
-			// The query is agnostic about this field
-			continue
-		} else {
-			cont := false
-			goshua.Unify(i1, v.FieldByName(name).Interface(), b,
-				func(b1 goshua.Bindings) {
-					b = b1
-					cont = true
-				})
-			// Field value didn't unify, so unification fails.
-			if !cont {
-				return
-			}
+	for name, val1 := range q.matchers {
+		method, _ := t.MethodByName(name)
+		val2 := method.Func.Call([]reflect.Value{v})[0].Interface()
+		cont := false
+		goshua.Unify(val1, val2, b,
+			func(b1 goshua.Bindings) {
+				b = b1
+				cont = true
+			})
+		// Field value didn't unify, so unification fails.
+		if !cont {
+			// log.Printf("no match %s %v %v", method.Name, val1, val2)
+			return
 		}
 	}
 	if q.itself == nil {
