@@ -26,35 +26,15 @@ type Node interface {
 
 	// IsValid check the node to make sure it's valid.
 	IsValid() bool
-
-	// InitializeNode should be called once the entire rete is constructed but
-	// before any data is entered.
-	InitializeNode()
 }
 
-// Initialize should be called on the root node of a rete after the rete is
-// constructed but before it is used to make sure every node is ready to run.
-func Initialize(n Node) {
-	initialized := make(map[Node]bool)
-	var walker func(Node)
-	walker = func(n Node) {
-		if initialized[n] {
-			return
-		}
-		n.InitializeNode()
-		initialized[n] = true
-		for _, o := range n.Outputs() {
-			walker(o)
-		}
-	}
-	walker(n)
-}
 
 // Connect arranges for from to output to to.
 func Connect(from Node, to Node) {
 	from.addOutput(to)
 	to.addInput(from)
 }
+
 
 // BasicNode provides a common implementation of the node interface's
 // Inputs, Outputs, and Emit methods.
@@ -104,11 +84,6 @@ func (n *BasicNode) Emit(item interface{}) {
 // Receive  is part of the node interface.
 func (n *BasicNode) Receive(interface{}) {
 	panic(fmt.Sprintf("BasicNode.Receive on %T", n))
-}
-
-// InitializeNode is part of the node interface.
-func (n *BasicNode) InitializeNode() {
-	// Defualt implementation is to do nothing.
 }
 
 // IsValid is part of the node interface.
@@ -313,8 +288,6 @@ func (n *JoinSide) IsValid() bool {
 	return true
 }
 
-func (n *JoinSide) InitializeNode() {
-}
 
 func (n *JoinSide) Receive(item1 interface{}) {
 	c := n.other.input.GetCursor()
