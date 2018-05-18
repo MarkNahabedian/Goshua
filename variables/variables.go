@@ -67,13 +67,14 @@ func (v *variable) HasVariables() bool {
 func (v *variable) Unify(other interface{},
 	bindings goshua.Bindings,
 	continuation func(goshua.Bindings)) {
-	log.Printf("variable.Unify() called")
 	if b, ok := bindings.Bind(v, other); ok {
-		val, has := b.Get(v)
-		log.Printf("bound %s to %#v: %v %#v", v.Name(), other, has, val)
+		// val, has := b.Get(v)
+		// log.Printf("bound %s to %#v: %v %#v", v.Name(), other, has, val)
+		// b.Dump()
 		continuation(b)
 	} else {
-		log.Printf("variable.Unify: Bind failed")
+		existing, _ := b.Get(v)
+		log.Printf("variable.Unify: Bind failed, %s value is %v", v, existing)
 	}
 }
 
