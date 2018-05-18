@@ -1,6 +1,7 @@
 package equality
 
 import "testing"
+import "reflect"
 import "goshua/goshua"
 
 func test(t *testing.T, equal bool, a, b interface{}) {
@@ -66,6 +67,9 @@ func TestComplex(t *testing.T) {
 func TestString(t *testing.T) {
 	test(t, true, "abcdef", "abcdef")
 	test(t, false, "abcdef", "ABCDEF")
+	test(t, true,
+		reflect.ValueOf("abcdef").Interface().(string),
+		reflect.ValueOf("abcdef").Interface().(string))
 }
 
 type testStruct struct {
