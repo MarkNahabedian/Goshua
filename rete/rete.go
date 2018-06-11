@@ -4,6 +4,7 @@ package rete
 import "fmt"
 import "reflect"
 
+
 type Node interface {
 	// Label returns the node's label.
 	Label() string
@@ -99,10 +100,19 @@ func (n *BasicNode) Clear() {
 	// Default method.
 }
 
+
+// MakeRootNode creates a note to serve as the root node of a rete.
+func MakeRootNode() Node {
+	return MakeFunctionNode("root", func(n Node, item interface{}) {
+		n.Emit(item)
+	})
+}
+
+
 // ActionNode is a node that can perform some action on its input item,
 // like construct and assert a fact.
 type ActionNode struct {
-	// node
+	// Node
 	BasicNode
 	actionFunction func(item interface{})
 }
@@ -125,10 +135,11 @@ func (n *ActionNode) IsValid() bool {
 	return true
 }
 
+
 // TestNode implements a rete node with a single input.  items Received
 // by a TestNode are only Emited if they satisfy a test function.
 type TestNode struct {
-	// node
+	// Node
 	BasicNode
 	testFunction func(interface{}) bool
 }
@@ -149,10 +160,52 @@ func (n *TestNode) IsValid() bool {
 	return true
 }
 
+
+// TypeFilterNode only passes items that satisfy the specified type.
+type TypeFilterNode struct {
+	// Node
+	BasicNode
+	testType reflect.Type
+}
+
+func MakeTypeFilterNode(t reflect.Type) *TypeFilterNode {
+	n := &TypeFilterNode{testType: t}
+    n.label = fmt.Sprintf("%s", t)
+	return n
+}
+
+// Receive is part of the node interface.
+func (n *TypeFilterNode) Receive(item interface{}) {
+	if reflect.TypeOf(item) == n.testType {
+		n.Emit(item)
+	}
+}
+
+// IsValid is part of the Node interface.
+func (n *TypeFilterNode) IsValid() bool {
+	return true
+}
+
+// TypeFilterNode find or create a Node that filters by the specified type t.
+// n should be the root node of a rete.
+func GetTypeFilterNode(n Node, t reflect.Type) *TypeFilterNode {
+	for _, output := range n.Outputs() {
+		if output, ok := output.(*TypeFilterNode); ok {
+			if output.testType == t {
+				return output
+			}
+		}
+	}
+	o := MakeTypeFilterNode(t)
+	Connect(n, o)
+	return o
+}
+
+
 // FunctionNode calls function on the incoming item.  It can
 // conditionally Emit that item or something else.
 type FunctionNode struct {
-	// node
+	// Node
 	BasicNode
 	function func(Node, interface{})
 }
@@ -175,13 +228,14 @@ func (n *FunctionNode) IsValid() bool {
 	return true
 }
 
+
 // BufferNode collects items into a buffer.
 // BufferNode provides cursors for iterating over the collected
 // items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
-	// node
+	// Node
 	BasicNode
-	items     []interface{}
+	items []interface{}
 }
 
 // IsValid is part of the Node interface.
@@ -206,7 +260,6 @@ func (n *BufferNode) Receive(item interface{}) {
 func (n *BufferNode) Clear() {
 	n.items = nil
 }
-
 
 type cursor struct {
 	done   bool
@@ -239,7 +292,7 @@ func (c *cursor) Next() (interface{}, bool) {
 // JoinNode combines the items in its two input BufferNodes pairwise,
 // Emiting the cross-product as successive [2]interface{} arrays..
 type JoinNode struct {
-	// node
+	// Node
 	BasicNode
 }
 
@@ -261,9 +314,9 @@ func (n *JoinNode) IsValid() bool {
 
 type JoinSide struct {
 	joinNode *JoinNode
-	input *BufferNode
-	other *JoinSide
-	swap bool
+	input    *BufferNode
+	other    *JoinSide
+	swap     bool
 }
 
 func (n *JoinSide) Label() string {
@@ -277,11 +330,11 @@ func (n *JoinSide) Label() string {
 }
 
 func (n *JoinSide) Inputs() []Node {
-	return []Node{ n.input }
+	return []Node{n.input}
 }
 
 func (n *JoinSide) Outputs() []Node {
-	return []Node{ n.joinNode }
+	return []Node{n.joinNode}
 }
 
 func (n *JoinSide) addInput(n2 Node) {
@@ -302,8 +355,7 @@ func (n *JoinSide) IsValid() bool {
 	return true
 }
 
-func (n *JoinSide) Clear() { }
-
+func (n *JoinSide) Clear() {}
 
 func (n *JoinSide) Receive(item1 interface{}) {
 	c := n.other.input.GetCursor()
@@ -316,7 +368,7 @@ func (n *JoinSide) Receive(item1 interface{}) {
 	}
 }
 
-
+// getBuffered finds or creates a BufferedNode which buffers the output of n.
 func getBuffered(n Node) *BufferNode {
 	if b, ok := n.(*BufferNode); ok {
 		return b
@@ -337,29 +389,30 @@ func Join(label string, a, b Node) *JoinNode {
 	jn.label = label
 	aSide := &JoinSide{
 		joinNode: jn,
-		input: getBuffered(a),
-		swap: false,
+		input:    getBuffered(a),
+		swap:     false,
 	}
 	aSide.input.addOutput(aSide)
 	bSide := &JoinSide{
 		joinNode: jn,
-		input: getBuffered(b),
-		swap: true,
+		input:    getBuffered(b),
+		swap:     true,
 	}
 	bSide.input.addOutput(bSide)
 	aSide.other = bSide
 	bSide.other = aSide
 	jn.addInput(aSide)
 	jn.addInput(bSide)
-	return jn	
+	return jn
 }
-
 
 func Walk(root Node, f func(n Node)) {
 	visited := make(map[Node]bool)
 	var visit func(Node)
 	visit = func(n Node) {
-		if visited[n] { return }
+		if visited[n] {
+			return
+		}
 		f(n)
 		visited[n] = true
 		for _, o := range n.Outputs() {

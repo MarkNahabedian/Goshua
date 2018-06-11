@@ -1,6 +1,7 @@
 package rete
 
 import "fmt"
+import "reflect"
 import "sort"
 import "testing"
 
@@ -35,6 +36,23 @@ func TestTestNode(t *testing.T) {
 	if s != "4" {
 		t.Errorf("Action should have been executed")
 	}
+}
+
+func TestTypeFilterNode(t *testing.T) {
+	root := MakeRootNode()
+    n1 := GetTypeFilterNode(root, reflect.TypeOf(""))
+    Connect(root, n1)
+	s0 := "foo"
+    s1 := ""
+	a1 := MakeActionNode(func(item interface{}) {
+		s1 = fmt.Sprintf("%v", item)
+	})
+    Connect(n1, a1)
+	root.Receive(1)
+    root.Receive(s0)
+    if s1 != s0 {
+		t.Errorf("TypeFilterNode failed: want %s, got %s", s0, s1)
+	}    
 }
 
 func TestBuffer(t *testing.T) {
