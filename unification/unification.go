@@ -19,7 +19,7 @@ func unify(thing1, thing2 interface{}, b goshua.Bindings,
 
 	for _, u := range typeUnifiers {
 		if u.test(thing1) && u.test(thing2) {
-			log.Printf("typeUnifier %T for %v, %v\n", u, thing1, thing2)
+			// log.Printf("typeUnifier %T for %v, %v\n", u, thing1, thing2)
 			u.unify(thing1, thing2, b, continuation)
 			return
 		}

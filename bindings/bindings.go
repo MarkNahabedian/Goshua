@@ -35,13 +35,13 @@ func (b *bindings) Get(v goshua.Variable) (interface{}, bool) {
 }
 
 func (b *bindings) Bind(v goshua.Variable, other interface{}) (goshua.Bindings, bool) {
-	log.Printf("Binding %s to %#v", v.Name(), other)
+	// log.Printf("Binding %s to %#v", v.Name(), other)
 	variables := make(map[goshua.Variable]bool)
 	variables[v] = true
 	var hasValue bool
 	var value interface{}
 	if v1, ok := other.(goshua.Variable); ok {
-		log.Printf("Linking variables %s and %s", v, v1)
+		// log.Printf("Linking variables %s and %s", v, v1)
 		variables[v1] = true
 		value = nil
 		hasValue = false
