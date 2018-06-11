@@ -26,6 +26,9 @@ type Node interface {
 
 	// IsValid check the node to make sure it's valid.
 	IsValid() bool
+
+	// Clear causes a Node to forget any stored items.
+	Clear()
 }
 
 
@@ -92,6 +95,10 @@ func (n *BasicNode) IsValid() bool {
 	panic("BasicNode is abstract.  It should not have been instantiated.")
 }
 
+func (n *BasicNode) Clear() {
+	// Default method.
+}
+
 // ActionNode is a node that can perform some action on its input item,
 // like construct and assert a fact.
 type ActionNode struct {
@@ -115,7 +122,7 @@ func (n *ActionNode) Receive(item interface{}) {
 
 // IsValid is part of the node interface.
 func (n *ActionNode) IsValid() bool {
-	return len(n.Inputs()) == 1
+	return true
 }
 
 // TestNode implements a rete node with a single input.  items Received
@@ -139,7 +146,7 @@ func (n *TestNode) Receive(item interface{}) {
 
 // IsValid is part of the Node interface.
 func (n *TestNode) IsValid() bool {
-	return len(n.Inputs()) == 1
+	return true
 }
 
 // FunctionNode calls function on the incoming item.  It can
@@ -165,7 +172,7 @@ func (n *FunctionNode) Receive(item interface{}) {
 
 // IsValid is part of the Node interface.
 func (n *FunctionNode) IsValid() bool {
-	return len(n.Inputs()) == 1
+	return true
 }
 
 // BufferNode collects items into a buffer.
@@ -179,7 +186,7 @@ type BufferNode struct {
 
 // IsValid is part of the Node interface.
 func (n *BufferNode) IsValid() bool {
-	return len(n.Inputs()) == 1
+	return true
 }
 
 func (n *BufferNode) Count() int {
@@ -195,6 +202,11 @@ func (n *BufferNode) Receive(item interface{}) {
 	n.items = append(n.items, item)
 	n.Emit(item)
 }
+
+func (n *BufferNode) Clear() {
+	n.items = nil
+}
+
 
 type cursor struct {
 	done   bool
@@ -236,7 +248,7 @@ func (n *JoinNode) IsValid() bool {
 	if len(n.Inputs()) != 2 {
 		return false
 	}
-	// The inputs of a JoinNode must be BufferNodes.
+	// The inputs of a JoinNode must be JoinSide Nodes.
 	if _, ok := n.Inputs()[0].(*JoinSide); !ok {
 		return false
 	}
@@ -285,8 +297,12 @@ func (n *JoinSide) Emit(item interface{}) {
 }
 
 func (n *JoinSide) IsValid() bool {
+	// JoinSide.addInput should prevent construction of an
+	// invalid JoinSide.
 	return true
 }
+
+func (n *JoinSide) Clear() { }
 
 
 func (n *JoinSide) Receive(item1 interface{}) {

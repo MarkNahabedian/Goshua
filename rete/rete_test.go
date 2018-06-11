@@ -74,7 +74,33 @@ func TestBuffer(t *testing.T) {
 	sort.Ints(got)
 	for i, exp := range expect {
 		if exp != got[i] {
-			t.Errorf("Valus differ: want %v, got %v", exp, got[i])
+			t.Errorf("Values differ: want %v, got %v", exp, got[i])
+		}
+	}
+}
+
+func TestBufferClear (t *testing.T) {
+	n1 := MakeTestNode(func(item interface{}) bool { return true })
+	n2 := &BufferNode{}
+	Connect(n1, n2)
+	n1.Receive(1)
+	n1.Receive(2)
+	Walk(n1, Node.Clear)
+	n1.Receive(3)
+	n1.Receive(4)
+	c := n2.GetCursor()
+	got := []int{}
+	expect := []int{ 3, 4 }
+	for item, present := c.Next(); present; item, present = c.Next() {
+		got = append(got, item.(int))
+	}
+	if len(expect) != len(got) {
+		t.Errorf("BufferNode iteration wrong count: want %v, got %v", expect, got)
+	}
+	sort.Ints(got)
+	for i, exp := range expect {
+		if exp != got[i] {
+			t.Errorf("Values differ: want %v, got %v", exp, got[i])
 		}
 	}
 }
@@ -121,7 +147,6 @@ func TestJoinNode(t *testing.T) {
 			outputs = append(outputs, fmt.Sprintf("%s%d", s, i))
 		})
 	Connect(jn, output_node)
-	Initialize(root_node)
 
 	Walk(root_node, func(n Node) {
 		t.Logf(`node "%s" %T`, n.Label(), n)
