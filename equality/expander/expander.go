@@ -15,6 +15,7 @@ import "go/parser"
 import "go/printer"
 import "go/token"
 import "strings"
+import "goshua/go_tools"
 
 const outputFile = "${GOPATH}/src/goshua/equality/generated.go"
 
@@ -37,26 +38,6 @@ func addDefs(defs []ast.Decl, file *ast.File) {
 	for _, def := range defs {
 		file.Decls = append(file.Decls, def)
 	}
-}
-
-// substitutingVisitor is used to replaces identifier names when walking an AST.
-type substitutingVisitor struct {
-	substitutions map[string]string
-}
-
-func newSubstitutingVisitor() *substitutingVisitor {
-	return &substitutingVisitor{substitutions: make(map[string]string)}
-}
-
-func (v *substitutingVisitor) Visit(node ast.Node) ast.Visitor {
-	// node.Pos = token.NoPos
-	// node.End = token.NoPos
-	if n, ok := node.(*ast.Ident); ok {
-		if newName, ok := v.substitutions[n.Name]; ok {
-			n.Name = newName
-		}
-	}
-	return v
 }
 
 var signedIntegers = []interface{}{
@@ -135,11 +116,11 @@ func init() {
 // before using ==.
 func defineEqual(fset *token.FileSet, kind1, kind2 reflect.Kind, targetType string) []ast.Decl {
 	function := mustParse(fset, "equalPrototype", equalPrototype)
-	v := newSubstitutingVisitor()
-	v.substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(kind1.String()))
-	v.substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(kind2.String()))
-	v.substitutions["functionName"] = equalName(kind1, kind2)
-	v.substitutions["targetType"] = targetType
+	v := go_tools.NewSubstitutingVisitor()
+	v.Substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(kind1.String()))
+	v.Substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(kind2.String()))
+	v.Substitutions["functionName"] = equalName(kind1, kind2)
+	v.Substitutions["targetType"] = targetType
 	ast.Walk(v, function)
 	return function.Decls
 }
@@ -195,10 +176,10 @@ func doSignedUnsigned(fset *token.FileSet, file *ast.File) {
 			iv := reflect.ValueOf(i)
 			uv := reflect.ValueOf(u)
 			function := mustParse(fset, "signedUnsignedInit", signedUnsignedInit)
-			v := newSubstitutingVisitor()
-			v.substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(iv.Kind().String()))
-			v.substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(uv.Kind().String()))
-			v.substitutions["functionName"] = equalName(iv.Kind(), uv.Kind())
+			v := go_tools.NewSubstitutingVisitor()
+			v.Substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(iv.Kind().String()))
+			v.Substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(uv.Kind().String()))
+			v.Substitutions["functionName"] = equalName(iv.Kind(), uv.Kind())
 			ast.Walk(v, function)
 			addDefs(function.Decls, file)
 		}
