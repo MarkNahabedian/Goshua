@@ -25,14 +25,6 @@ func equalName(kind1, kind2 reflect.Kind) string {
 	return fmt.Sprintf("equal_%s_%s", kind1.String(), kind2.String())
 }
 
-func mustParse(fset *token.FileSet, sourceName string, code string) *ast.File {
-	parsed, err := parser.ParseFile(fset, sourceName, code, parser.Mode(0))
-	if err != nil {
-		panic(err)
-	}
-	return parsed
-}
-
 // addDefs adds defs to the declarations of file.
 func addDefs(defs []ast.Decl, file *ast.File) {
 	for _, def := range defs {
@@ -115,7 +107,7 @@ func init() {
 // and kind2 are equal.  It does this by casting them both to targetKind
 // before using ==.
 func defineEqual(fset *token.FileSet, kind1, kind2 reflect.Kind, targetType string) []ast.Decl {
-	function := mustParse(fset, "equalPrototype", equalPrototype)
+	function := go_tools.MustParse(fset, "equalPrototype", equalPrototype)
 	v := go_tools.NewSubstitutingVisitor()
 	v.Substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(kind1.String()))
 	v.Substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(kind2.String()))
@@ -170,12 +162,12 @@ func init() {
 ` // signedUnsignedPrototype
 
 func doSignedUnsigned(fset *token.FileSet, file *ast.File) {
-	addDefs(mustParse(fset, "signedUnsignedPrototype", signedUnsignedPrototype).Decls, file)
+	addDefs(go_tools.MustParse(fset, "signedUnsignedPrototype", signedUnsignedPrototype).Decls, file)
 	for _, i := range signedIntegers {
 		for _, u := range unsignedIntegers {
 			iv := reflect.ValueOf(i)
 			uv := reflect.ValueOf(u)
-			function := mustParse(fset, "signedUnsignedInit", signedUnsignedInit)
+			function := go_tools.MustParse(fset, "signedUnsignedInit", signedUnsignedInit)
 			v := go_tools.NewSubstitutingVisitor()
 			v.Substitutions["kind1"] = fmt.Sprintf("reflect.%s", strings.Title(iv.Kind().String()))
 			v.Substitutions["kind2"] = fmt.Sprintf("reflect.%s", strings.Title(uv.Kind().String()))
