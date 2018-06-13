@@ -357,13 +357,20 @@ func (n *JoinSide) IsValid() bool {
 
 func (n *JoinSide) Clear() {}
 
+// JoinResult is the type of object Emited by a JoinNode.
+type JoinResult *[2]interface{}
+
+func MakeJoinResult(item1, item2 interface{}) JoinResult {
+	return &[2]interface{}{item1, item2}
+}
+
 func (n *JoinSide) Receive(item1 interface{}) {
 	c := n.other.input.GetCursor()
 	for item2, present := c.Next(); present; item2, present = c.Next() {
 		if n.swap {
-			n.Emit([2]interface{}{item2, item1})
+			n.Emit(MakeJoinResult(item2, item1))
 		} else {
-			n.Emit([2]interface{}{item1, item2})
+			n.Emit(MakeJoinResult(item1, item2))
 		}
 	}
 }
