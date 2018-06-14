@@ -1,0 +1,12 @@
+package example
+
+type Thing struct {
+	A interface{}
+	B interface{}
+}
+
+func rule_TransitiveThing(t1 *Thing, t2 *Thing) {
+	if t1.B == t2.A {
+		__node.Emit(&Thing{ A: t1.A, B:t2.B })
+	}
+}
