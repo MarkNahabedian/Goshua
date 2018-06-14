@@ -1,7 +1,11 @@
 // rule_compiler translates a source file of rules to a go source file
 // with one function definition per fule.  Each such function has the
 // signature func RuleName(root_node Node) and will modify the rete rooted
-// at root_node my addiing additional nodes to impelement its rule.
+// at root_node my adding additional nodes to impelement its rule.
+//
+// Limitations:
+// Currently only rules whose parameters are struct pointer types can
+// be compiled.
 package main
 
 import "flag"
@@ -11,7 +15,7 @@ import "path"
 import "strings"
 import "go/ast"
 import "go/parser"
-import "go/printer"
+import "go/format"
 import "go/token"
 import "go/types"
 
@@ -47,6 +51,66 @@ func parseDefinition(def string) *ast.File {
 	return astFile
 }
 
+func makeImportSpec(pkgName string) *ast.ImportSpec {
+	return &ast.ImportSpec{
+		Path: &ast.BasicLit{ Kind: token.STRING, Value: `"` + pkgName + `"`,
+		},
+	}
+}
+
+func makeImportDecl(pkgName string) *ast.GenDecl {
+	return &ast.GenDecl{
+		Tok: token.IMPORT,
+		Specs: []ast.Spec{ makeImportSpec(pkgName) },
+	}
+}
+
+func makeAssignmentStatement(tok token.Token, name string, value ast.Expr) *ast.AssignStmt {
+	return &ast.AssignStmt{
+		Lhs: []ast.Expr{ast.NewIdent(name)},
+		Tok: token.DEFINE,
+		Rhs: []ast.Expr{value,
+		},
+	}
+}
+
+func makeVariableDeclaration(name string, typ ast.Expr, value ast.Expr) *ast.DeclStmt {
+	s := &ast.DeclStmt{Decl: &ast.GenDecl{
+		Tok: token.VAR,
+		Specs: []ast.Spec{
+			&ast.ValueSpec{
+				Names: []*ast.Ident{ast.NewIdent(name)},
+				Type:  typ,
+			},
+		},
+	}}
+	if value != nil {
+		vs := s.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
+		vs.Values = append(vs.Values, value)
+	}
+	return s
+}
+
+type ruleParameter struct {
+	name string
+	paramType string
+}
+
+func ruleParameters(ruleDef *ast.FuncDecl) []*ruleParameter {
+	result := []*ruleParameter{}
+	for _, field := range ruleDef.Type.Params.List {
+		typeString := types.ExprString(field.Type)
+		for _, nameId := range field.Names {
+			name := nameId.Name
+			result = append(result, &ruleParameter{
+				name: name,
+				paramType: typeString,
+			})
+		}
+	}
+	return result
+}
+
 // makeRuleInserter composes the definition of the function which
 // inserts the nodes that implement a rule into the rete.
 func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
@@ -60,59 +124,76 @@ func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	addStatement := func(s ast.Stmt) {
 		body.List = append(body.List, s)
 	}
-	typeNodes := []string{}
-	// Insert the TypeFilterNodes
-	for _, field := range ruleDef.Type.Params.List {
-		typeString := types.ExprString(field.Type)
-		for _, nameId := range field.Names {
-			name := nameId.Name
-			typeNodes = append(typeNodes, name)
-			addStatement(&ast.AssignStmt{
-				Lhs: []ast.Expr{ast.NewIdent(name)},
-				Tok: token.DEFINE,
-				Rhs: []ast.Expr{parseExpression(fmt.Sprintf(
-					"rete.GetTypeFilterNode(root_node, reflect.TypeOf((func() %s { return nil })()))",
-					typeString)),
-				},
-			})
-		}
+	// For each parameter of a rule we use rete.GetTypeFilterNode
+	// on its data type to get a Node that Emits items of that type.
+	params := ruleParameters(ruleDef)
+	for _, param := range params {
+		addStatement(makeAssignmentStatement(token.DEFINE, param.name,
+			parseExpression(fmt.Sprintf(
+				"rete.GetTypeFilterNode(root_node, reflect.TypeOf((func() %s { return nil })()))",
+				param.paramType))))
 	}
-	// Insert the JoinNodes
-	addStatement(&ast.DeclStmt{Decl: &ast.GenDecl{
-		Tok: token.VAR,
-		Specs: []ast.Spec{
-			&ast.ValueSpec{
-				Names: []*ast.Ident{ast.NewIdent("previous")},
-				Type:  parseExpression("rete.Node"),
-			},
-		},
-	}})
-	addStatement(&ast.AssignStmt{
-		Lhs: []ast.Expr{ast.NewIdent("previous")},
-		Tok: token.ASSIGN,
-		Rhs: []ast.Expr{ast.NewIdent(typeNodes[len(typeNodes)-1])},
-	})
-	for i := len(typeNodes) - 2; i >= 0; i-- {
+	// The outputs of those n Nodes are all joined together using n-1 JoinNodes.
+	// previous is initially set to the last TypeFilterNode.  Each pre-sessive
+	// TypeFilterNode is Joind in turn such that the result of the final JoinNode
+	// is as linked list of the joined items in the same order as in the rule's
+	// parameter list.
+	addStatement(makeVariableDeclaration("previous",
+		 parseExpression("rete.Node"),
+		ast.NewIdent(params[len(params)-1].name)))
+	for i := len(params) - 2; i >= 0; i-- {
 		addStatement(&ast.AssignStmt{
 			Lhs: []ast.Expr{ast.NewIdent("previous")},
 			Tok: token.ASSIGN,
 			Rhs: []ast.Expr{parseExpression(fmt.Sprintf(
 				"rete.Join(\"%s-%d\", %s, previous)",
-				ruleName, i, typeNodes[i])),
+				ruleName, i, params[i].name)),
 			},
 		})
 	}
 	// The node that calls the rule function
-	addStatement(&ast.AssignStmt{
-		Lhs: []ast.Expr{ast.NewIdent("ruleNode")},
-		Tok: token.DEFINE,
-		Rhs: []ast.Expr{parseExpression(
+	addStatement(makeAssignmentStatement(token.DEFINE, "ruleNode",
+		parseExpression(
 			fmt.Sprintf("rete.MakeFunctionNode(\"%s\", %s)",
-				ruleName, RuleFunctionName(ruleDefName))),
-		},
-	})
+				ruleName, RuleFunctionName(ruleDefName)))))
 	addStatement(&ast.ExprStmt{parseExpression("rete.Connect(previous, ruleNode)")})
 	addStatement(&ast.ExprStmt{parseExpression("rete.Connect(ruleNode, root_node)")})
+	return f
+}
+
+func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
+	ruleDefName := ruleDef.Name.Name
+	funProto := fmt.Sprintf("package %s\nfunc %s(__node rete.Node, joinResult rete.JoinResult) {}",
+		pkgName, RuleFunctionName(ruleDefName))
+	f := parseDefinition(funProto).Decls[0].(*ast.FuncDecl)
+	body := f.Body
+	addStatement := func(s ast.Stmt) {
+		body.List = append(body.List, s)
+	}
+	params := ruleParameters(ruleDef)
+	// Bind each of the rule parameters to the corresponding element of
+	// joinResult.
+	// The variable jr is used to walk down the parameters list.
+	addStatement(makeAssignmentStatement(token.DEFINE, "jr",
+		ast.NewIdent("joinResult")))
+	// n parameters, n-1 joins, n-2 CDRs.
+	for i, param := range params[0: len(params)-1] {
+		addStatement(makeVariableDeclaration(param.name,
+		  	parseExpression(param.paramType),
+			parseExpression(fmt.Sprintf("jr[0].(%s)", param.paramType))))
+		if i < len(params) - 2 {
+			addStatement(makeAssignmentStatement(token.ASSIGN, "jr",
+				parseExpression("jr[1]")))
+		}
+	}
+	{
+		param := params[len(params) - 1]
+			addStatement(makeVariableDeclaration(param.name,
+			parseExpression(param.paramType),
+			parseExpression("jr[1]")))
+	}
+	// We might eventually want todo transformations on the rule body.
+	body.List = append(body.List, ruleDef.Body.List...)
 	return f
 }
 
@@ -124,7 +205,10 @@ func translateFile(filename string) {
 		return
 	}
 	pkgName := "foo"
-	newDecls := []ast.Decl{}
+	newDecls := []ast.Decl{
+		makeImportDecl("reflect"),
+		makeImportDecl("goshua/rete"),
+	}
 	for _, decl := range astFile.Decls {
 		rd := asRuleDefinition(decl)
 		if rd == nil {
@@ -133,8 +217,9 @@ func translateFile(filename string) {
 		}
 		// It's a rule definition.
 		fmt.Printf("Rule definition for %s\n", ruleBaseName(rd.Name.Name))
-		newDecls = append(newDecls, makeRuleInserter(pkgName, rd))
-		// ***** Still need to build the rule function
+		newDecls = append(newDecls,
+			makeRuleInserter(pkgName, rd),
+			makeRuleFunction(pkgName, rd))
 	}
 	astFile.Decls = newDecls
 	outname := path.Join(path.Dir(filename),
@@ -143,15 +228,13 @@ func translateFile(filename string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't create %s: %s", outname, err)
 	}
-	printer.Fprint(out, fset, astFile)
+	// format doesn't seem to do any better a job than printer.
+	format.Node(out, fset, astFile)
 	out.Close()
 }
 
 /*
-
-For each parameter of a rule we use GetTypeFilterNode on its data type
-to get a Node that Emits items of that type.  The outputs of those n
-Nodes are all joined together using n-1 JoinNodes and the output of
+ and the output of
 the final join flattened so that each successive element canbe bound
 to the corresponding rule parameter name with appropriate type
 assertions.
