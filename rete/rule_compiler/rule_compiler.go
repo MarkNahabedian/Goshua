@@ -130,7 +130,7 @@ func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	for _, param := range params {
 		addStatement(makeAssignmentStatement(token.DEFINE, param.name,
 			parseExpression(fmt.Sprintf(
-				"rete.GetTypeFilterNode(root_node, reflect.TypeOf((func() %s { return nil })()))",
+				"rete.GetTypeFilterNode(root_node, reflect.TypeOf((func() (x %s) { x = nil; return x })()))",
 				param.paramType))))
 	}
 	// The outputs of those n Nodes are all joined together using n-1 JoinNodes.
@@ -163,7 +163,7 @@ func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 
 func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	ruleDefName := ruleDef.Name.Name
-	funProto := fmt.Sprintf("package %s\nfunc %s(__node rete.Node, joinResult rete.JoinResult) {}",
+	funProto := fmt.Sprintf("package %s\nfunc %s(__node rete.Node, joinResult interface{}) {}",
 		pkgName, RuleFunctionName(ruleDefName))
 	f := parseDefinition(funProto).Decls[0].(*ast.FuncDecl)
 	body := f.Body
@@ -175,7 +175,7 @@ func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	// joinResult.
 	// The variable jr is used to walk down the parameters list.
 	addStatement(makeAssignmentStatement(token.DEFINE, "jr",
-		ast.NewIdent("joinResult")))
+		parseExpression("joinResult.(rete.JoinResult)")))
 	// n parameters, n-1 joins, n-2 CDRs.
 	for i, param := range params[0: len(params)-1] {
 		addStatement(makeVariableDeclaration(param.name,
@@ -190,7 +190,7 @@ func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 		param := params[len(params) - 1]
 			addStatement(makeVariableDeclaration(param.name,
 			parseExpression(param.paramType),
-			parseExpression("jr[1]")))
+			parseExpression(fmt.Sprintf("jr[1].(%s)", param.paramType))))
 	}
 	// We might eventually want todo transformations on the rule body.
 	body.List = append(body.List, ruleDef.Body.List...)
@@ -314,7 +314,7 @@ func asRuleDefinition(astnode ast.Node) *ast.FuncDecl {
 
 go build goshua/rete/rule_compiler
 
-.\rule_compiler.exe example\example.rules 
+.\rule_compiler.exe example\example.rules
 
 go build goshua/rete/rule_compiler/example
 
