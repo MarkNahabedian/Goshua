@@ -319,7 +319,7 @@ func ruleBaseName(ruleName string) string {
 // RuleInserterName synthesizes the canonical name for the function that
 // inserts a rule implementation into a rete.
 func RuleInserterName(ruleName string) string {
-	return ruleBaseName(ruleName)
+	return ruleBaseName(ruleName) + "Rule"
 }
 
 // RuleFunctionName synthesizes the canonical name for the function that
@@ -340,13 +340,3 @@ func asRuleDefinition(astnode ast.Node) *ast.FuncDecl {
 	return nil
 }
 
-
-/* 
-
-go build goshua/rete/rule_compiler
-
-.\rule_compiler.exe example\example.rules
-
-go build goshua/rete/rule_compiler/example
-
-*/
