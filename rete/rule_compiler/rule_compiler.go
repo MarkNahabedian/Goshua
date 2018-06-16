@@ -51,6 +51,12 @@ func parseDefinition(def string) *ast.File {
 	return astFile
 }
 
+func makeEmptyInitFunction(pkgName string) *ast.FuncDecl {
+	astFile := parseDefinition(fmt.Sprintf("package %s\nfunc init() {}",
+		pkgName))
+	return astFile.Decls[0].(*ast.FuncDecl)
+}
+
 func makeImportSpec(pkgName string) *ast.ImportSpec {
 	return &ast.ImportSpec{
 		Path: &ast.BasicLit{ Kind: token.STRING, Value: `"` + pkgName + `"`,
@@ -113,7 +119,7 @@ func ruleParameters(ruleDef *ast.FuncDecl) []*ruleParameter {
 
 // makeRuleInserter composes the definition of the function which
 // inserts the nodes that implement a rule into the rete.
-func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
+func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl, params []*ruleParameter) ast.Decl {
 	ruleDefName := ruleDef.Name.Name
 	ruleName := ruleBaseName(ruleDefName)
 	funProto := fmt.Sprintf("package %s\nfunc %s(root_node rete.Node) {}",
@@ -124,18 +130,17 @@ func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	addStatement := func(s ast.Stmt) {
 		body.List = append(body.List, s)
 	}
-	// For each parameter of a rule we use rete.GetTypeFilterNode
+	// For each parameter of a rule we use rete.GetTypeTestNode
 	// on its data type to get a Node that Emits items of that type.
-	params := ruleParameters(ruleDef)
 	for _, param := range params {
 		addStatement(makeAssignmentStatement(token.DEFINE, param.name,
 			parseExpression(fmt.Sprintf(
-				"rete.GetTypeFilterNode(root_node, reflect.TypeOf((func() (x %s) { x = nil; return x })()))",
+				"rete.GetTypeTestNode(root_node, \"%s\")",
 				param.paramType))))
 	}
 	// The outputs of those n Nodes are all joined together using n-1 JoinNodes.
-	// previous is initially set to the last TypeFilterNode.  Each pre-sessive
-	// TypeFilterNode is Joind in turn such that the result of the final JoinNode
+	// previous is initially set to the last TypeTestNode.  Each pre-sessive
+	// TypeTestNode is Joind in turn such that the result of the final JoinNode
 	// is as linked list of the joined items in the same order as in the rule's
 	// parameter list.
 	addStatement(makeVariableDeclaration("previous",
@@ -161,38 +166,49 @@ func makeRuleInserter(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
 	return f
 }
 
-func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl) ast.Decl {
+func makeRuleFunction(pkgName string, ruleDef *ast.FuncDecl, params []*ruleParameter) ast.Decl {
 	ruleDefName := ruleDef.Name.Name
-	funProto := fmt.Sprintf("package %s\nfunc %s(__node rete.Node, joinResult interface{}) {}",
-		pkgName, RuleFunctionName(ruleDefName))
+	var funProto string
+	if len(params) == 1 {
+		funProto = fmt.Sprintf(
+			`package %s
+			func %s(__node rete.Node, i interface{}) {
+				%s := i.(%s)
+			}`,
+			pkgName, RuleFunctionName(ruleDefName), params[0].name, params[0].paramType)
+	} else {
+		funProto = fmt.Sprintf("package %s\nfunc %s(__node rete.Node, joinResult interface{}) {}",
+			pkgName, RuleFunctionName(ruleDefName))
+	}
 	f := parseDefinition(funProto).Decls[0].(*ast.FuncDecl)
 	body := f.Body
 	addStatement := func(s ast.Stmt) {
 		body.List = append(body.List, s)
 	}
-	params := ruleParameters(ruleDef)
-	// Bind each of the rule parameters to the corresponding element of
-	// joinResult.
-	// The variable jr is used to walk down the parameters list.
-	addStatement(makeAssignmentStatement(token.DEFINE, "jr",
-		parseExpression("joinResult.(rete.JoinResult)")))
-	// n parameters, n-1 joins, n-2 CDRs.
-	for i, param := range params[0: len(params)-1] {
-		addStatement(makeVariableDeclaration(param.name,
-		  	parseExpression(param.paramType),
-			parseExpression(fmt.Sprintf("jr[0].(%s)", param.paramType))))
-		if i < len(params) - 2 {
-			addStatement(makeAssignmentStatement(token.ASSIGN, "jr",
-				parseExpression("jr[1]")))
+	if len(params) != 1 {
+		// Bind each of the rule parameters to the corresponding element of
+		// joinResult.
+		// The variable jr is used to walk down the parameters list.
+		addStatement(makeAssignmentStatement(token.DEFINE, "jr",
+			parseExpression("joinResult.(rete.JoinResult)")))
+		// n parameters, n-1 joins, n-2 CDRs.
+		for i, param := range params[0: len(params)-1] {
+			addStatement(makeVariableDeclaration(param.name,
+			  	parseExpression(param.paramType),
+				parseExpression(fmt.Sprintf("jr[0].(%s)", param.paramType))))
+			if i < len(params) - 2 {
+				addStatement(makeAssignmentStatement(token.ASSIGN, "jr",
+					parseExpression("jr[1]")))
+			}
+		}
+		{
+			param := params[len(params) - 1]
+				addStatement(makeVariableDeclaration(param.name,
+				parseExpression(param.paramType),
+				parseExpression(fmt.Sprintf("jr[1].(%s)", param.paramType))))
 		}
 	}
-	{
-		param := params[len(params) - 1]
-			addStatement(makeVariableDeclaration(param.name,
-			parseExpression(param.paramType),
-			parseExpression(fmt.Sprintf("jr[1].(%s)", param.paramType))))
-	}
-	// We might eventually want todo transformations on the rule body.
+	// We might eventually want to do transformations on the rule body.
 	body.List = append(body.List, ruleDef.Body.List...)
 	return f
 }
@@ -206,9 +222,9 @@ func translateFile(filename string) {
 	}
 	pkgName := "foo"
 	newDecls := []ast.Decl{
-		makeImportDecl("reflect"),
 		makeImportDecl("goshua/rete"),
 	}
+	paramTypes := make(map[string]bool)
 	for _, decl := range astFile.Decls {
 		rd := asRuleDefinition(decl)
 		if rd == nil {
@@ -217,11 +233,26 @@ func translateFile(filename string) {
 		}
 		// It's a rule definition.
 		fmt.Printf("Rule definition for %s\n", ruleBaseName(rd.Name.Name))
+		params := ruleParameters(rd)
 		newDecls = append(newDecls,
-			makeRuleInserter(pkgName, rd),
-			makeRuleFunction(pkgName, rd))
+			makeRuleInserter(pkgName, rd, params),
+			makeRuleFunction(pkgName, rd, params))
+		for _, p := range params {
+			paramTypes[p.paramType] = true
+		}
 	}
 	astFile.Decls = newDecls
+	initFunc := makeEmptyInitFunction(pkgName)
+	for pType, incl := range paramTypes {
+		if incl {
+			e := parseExpression(fmt.Sprintf(
+				`rete.EnsureTypeTestRegistered("%s", func(i interface{}) bool { _, ok := i.(%s); return ok })`,
+					pType, pType))
+			initFunc.Body.List = append(initFunc.Body.List,
+				&ast.ExprStmt{ X: e})
+		}
+	}
+	astFile.Decls = append(astFile.Decls, initFunc)
 	outname := path.Join(path.Dir(filename),
 		strings.TrimSuffix(path.Base(filename), ".rules")+".go")
 	out, err := os.Create(outname)
@@ -243,7 +274,7 @@ The rule is translated to a function which takes a rete root node as
 argument.  That function inserts whatever Node subgraph is required to
 impleent the rule.
 
-That subgraph will have a TypeFilterNode for each unique type
+That subgraph will have a TypeTestNode for each unique type
 mentioned in the rule's parameters.
 
 It will have one fewer JoinNode (and whatever BufferNode and JoinSide
