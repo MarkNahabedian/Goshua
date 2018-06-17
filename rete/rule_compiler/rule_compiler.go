@@ -259,7 +259,8 @@ func translateFile(filename string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't create %s: %s", outname, err)
 	}
-	// format doesn't seem to do any better a job than printer.
+	// The documentation for (go/printer).Fprint suggests that the
+	// output of format.Node is more consistent with that of gofmt.
 	format.Node(out, fset, astFile)
 	out.Close()
 }
