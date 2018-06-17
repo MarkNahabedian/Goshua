@@ -170,7 +170,7 @@ type TypeFilterNode struct {
 
 func MakeTypeFilterNode(t reflect.Type) *TypeFilterNode {
 	n := &TypeFilterNode{testType: t}
-    n.label = fmt.Sprintf("%s", t)
+    n.label = fmt.Sprintf("%v", t)
 	return n
 }
 
@@ -375,8 +375,8 @@ func (n *JoinSide) Receive(item1 interface{}) {
 	}
 }
 
-// getBuffered finds or creates a BufferedNode which buffers the output of n.
-func getBuffered(n Node) *BufferNode {
+// GetBuffered finds or creates a BufferNode which buffers the output of n.
+func GetBuffered(n Node) *BufferNode {
 	if b, ok := n.(*BufferNode); ok {
 		return b
 	}
@@ -396,13 +396,13 @@ func Join(label string, a, b Node) *JoinNode {
 	jn.label = label
 	aSide := &JoinSide{
 		joinNode: jn,
-		input:    getBuffered(a),
+		input:    GetBuffered(a),
 		swap:     false,
 	}
 	aSide.input.addOutput(aSide)
 	bSide := &JoinSide{
 		joinNode: jn,
-		input:    getBuffered(b),
+		input:    GetBuffered(b),
 		swap:     true,
 	}
 	bSide.input.addOutput(bSide)
