@@ -50,7 +50,7 @@ func makeImportDecl(pkgName string) *ast.GenDecl {
 func makeAssignmentStatement(tok token.Token, name string, value ast.Expr) *ast.AssignStmt {
 	return &ast.AssignStmt{
 		Lhs: []ast.Expr{ast.NewIdent(name)},
-		Tok: token.DEFINE,
+		Tok: tok,
 		Rhs: []ast.Expr{value,
 		},
 	}
