@@ -218,7 +218,7 @@ func translateFile(filename string) {
 				&ast.ExprStmt{ X: e})
 		}
 	}
-	astFile.Decls = append(astFile.Decls, initFunc)
+	newAstFile.Decls = append(newAstFile.Decls, initFunc)
 	outname := path.Join(path.Dir(filename),
 		strings.TrimSuffix(path.Base(filename), ".rules")+".go")
 	writeFile(fset, newAstFile, outname)
