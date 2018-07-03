@@ -149,7 +149,7 @@ func makeRuleFunction(pkgName string, rd *ruleDefinition, params []*ruleParamete
 				parseExpression(fmt.Sprintf("jr[0].(%s)", param.paramType))))
 			if i < len(params) - 2 {
 				addStatement(makeAssignmentStatement(token.ASSIGN, "jr",
-					parseExpression("jr[1]")))
+					parseExpression("jr[1].(rete.JoinResult)")))
 			}
 		}
 		{
@@ -166,7 +166,7 @@ func makeRuleFunction(pkgName string, rd *ruleDefinition, params []*ruleParamete
 
 func translateFile(filename string) {
 	fset := token.NewFileSet()
-	astFile, err := parser.ParseFile(fset, filename, nil, 0)
+	astFile, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Errors for file %s:\n%s\n", filename, err)
 		return
