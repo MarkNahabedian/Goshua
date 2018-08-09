@@ -214,6 +214,7 @@ func translateFile(filename string) {
 			e := parseExpression(fmt.Sprintf(
 				`rete.EnsureTypeTestRegistered("%s", func(i interface{}) bool { _, ok := i.(%s); return ok })`,
 					pType, pType))
+			debugExpressionPos(e)
 			initFunc.Body.List = append(initFunc.Body.List,
 				&ast.ExprStmt{ X: e})
 		}
