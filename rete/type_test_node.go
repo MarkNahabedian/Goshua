@@ -45,6 +45,8 @@ func MakeTypeTestNode(t string) *TypeTestNode {
 	return n
 }
 
+func (n *TypeTestNode) TypeName() string { return n.typeName }
+
 // Receive is part of the node interface.
 func (n *TypeTestNode) Receive(item interface{}) {
 	if n.testFunc(item) {
@@ -57,7 +59,7 @@ func (n *TypeTestNode) IsValid() bool {
 	return true
 }
 
-// GetTypeTestNode find or create a Node that filters by the specified type t.
+// GetTypeTestNode finds or creates a Node that filters by the specified type t.
 // n should be the root node of a rete.
 func GetTypeTestNode(n Node, typeName string) *TypeTestNode {
 	for _, output := range n.Outputs() {
