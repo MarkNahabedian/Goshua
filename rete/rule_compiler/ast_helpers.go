@@ -15,7 +15,7 @@ func parseExpression(exp string) ast.Expr {
 		fmt.Fprintf(os.Stderr, "Offending code:\n%s\n", exp)
 		panic(err)
 	}
-	return e
+	return NoPos(e).(ast.Expr)
 }
 
 func parseDefinition(def string) *ast.File {
