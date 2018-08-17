@@ -5,7 +5,7 @@ import "fmt"
 // This is a kludge because I've not found a way in go to express a
 // literal that identifies a data type.
 
-// TypeTestRegistry maps the string namiing a go type to a function
+// TypeTestRegistry maps the string naming a go type to a function
 // that returns true if an interface represents an object of that type.
 // Such functions are defined and put here by code generated bu the
 // rule_compiler.
