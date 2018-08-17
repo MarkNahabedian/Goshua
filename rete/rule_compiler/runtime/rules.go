@@ -61,3 +61,11 @@ func (r *rule) ParamTypes() []string { return r.paramTypes }
 
 func (r *rule) EmitTypes() []string { return r.emitTypes }
 
+func SetEmitTypes(rule_name string, emitTypes []string) {
+	for _, r := range AllRules {
+		if r.Name() == rule_name {
+			r.(*rule).emitTypes = emitTypes
+			break
+		}
+	}
+}
