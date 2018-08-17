@@ -55,6 +55,9 @@ type ruleParameter struct {
 	paramType string
 }
 
+func (rp *ruleParameter) Name() string { return rp.name }
+func (rp *ruleParameter) ParamType() string { return rp.paramType }
+
 func ruleParameters(ruleDef *ast.FuncDecl) []*ruleParameter {
 	result := []*ruleParameter{}
 	for _, field := range ruleDef.Type.Params.List {
@@ -72,7 +75,8 @@ func ruleParameters(ruleDef *ast.FuncDecl) []*ruleParameter {
 
 // makeRuleInserter composes the definition of the function which
 // inserts the nodes that implement a rule into the rete.
-func makeRuleInserter(pkgName string, rd *ruleDefinition, params []*ruleParameter) ast.Decl {
+func makeRuleInserter(pkgName string, rd *ruleDefinition) ast.Decl {
+	params := rd.ruleParameters
 	funProto := fmt.Sprintf("package %s\nfunc %s(root_node rete.Node) {}",
 		pkgName,
 		rd.ruleInserterName)
@@ -117,7 +121,8 @@ func makeRuleInserter(pkgName string, rd *ruleDefinition, params []*ruleParamete
 	return f
 }
 
-func makeRuleFunction(pkgName string, rd *ruleDefinition, params []*ruleParameter) ast.Decl {
+func makeRuleFunction(pkgName string, rd *ruleDefinition) ast.Decl {
+	params := rd.ruleParameters
 	ruleDef := rd.funcdecl
 	var funProto string
 	if len(params) == 1 {
@@ -187,6 +192,9 @@ func translateFile(filename string) {
 			makeImportDecl("goshua/rete/rule_compiler/runtime"),
 		},
 	}
+	// paramTypes is used to produce an init() function at the end of the
+	// output file that updates a map from type name string to a predicate
+	// function that tests for that type.
 	paramTypes := make(map[string]bool)
 	for _, decl := range astFile.Decls {
 		rd := asRuleDefinition(decl)
@@ -197,14 +205,11 @@ func translateFile(filename string) {
 		}
 		// It's a rule definition.
 		fmt.Printf("Rule definition for %s\n", rd.ruleName)
-		params := ruleParameters(rd.funcdecl)
-		rf := makeRuleFunction(pkgName, rd, params)
 		newAstFile.Decls = append(newAstFile.Decls,
-			makeRuleInserter(pkgName, rd, params))
-		newAstFile.Decls = append(newAstFile.Decls,
-			rf)
-		newAstFile.Decls = append(newAstFile.Decls, rd.makeAddRule())
-		for _, p := range params {
+			makeRuleInserter(pkgName, rd),
+			makeRuleFunction(pkgName, rd),
+			rd.makeAddRule(rd.ruleParameters))
+		for _, p := range rd.ruleParameters {
 			paramTypes[p.paramType] = true
 		}
 	}
@@ -214,7 +219,6 @@ func translateFile(filename string) {
 			e := parseExpression(fmt.Sprintf(
 				`rete.EnsureTypeTestRegistered("%s", func(i interface{}) bool { _, ok := i.(%s); return ok })`,
 					pType, pType))
-			debugExpressionPos(e)
 			initFunc.Body.List = append(initFunc.Body.List,
 				&ast.ExprStmt{ X: e})
 		}
@@ -233,11 +237,13 @@ type ruleDefinition struct {
 	ruleName string
 	ruleInserterName string
 	ruleFunctionName string
+	ruleParameters []*ruleParameter
 }
 
 func (rd *ruleDefinition) RuleName() string { return rd.ruleName }
 func (rd *ruleDefinition) RuleInserterName() string { return rd.ruleInserterName }
 func (rd *ruleDefinition) RuleFunctionName() string { return rd.ruleFunctionName }
+func (rd *ruleDefinition) RuleParameters() []*ruleParameter { return rd.ruleParameters }
 
 func asRuleDefinition(astnode ast.Node) *ruleDefinition {
 	// Test to see if this top level definition looks like a rule
@@ -251,6 +257,7 @@ func asRuleDefinition(astnode ast.Node) *ruleDefinition {
 			ruleName: ruleBaseName(fd.Name.Name),
 			ruleInserterName: RuleInserterName(fd.Name.Name),
 			ruleFunctionName: RuleFunctionName(fd.Name.Name),
+			ruleParameters: ruleParameters(fd),
 		}
 	}
 	return nil
@@ -259,13 +266,23 @@ func asRuleDefinition(astnode ast.Node) *ruleDefinition {
 var addRuleTemplate *template.Template = template.Must(template.New("addRuleTemplate").Parse(`
 package foo
 func init() {
-	runtime.AddRule("{{.RuleName}}", {{.RuleInserterName}}, "{{.RuleFunctionName}}")
+	runtime.AddRule("{{.RuleName}}",
+		{{.RuleInserterName}},
+		{{.RuleFunctionName}},
+		[]string{
+			{{range .RuleParameters}}
+				"{{.ParamType}}",
+			{{end}}
+		})
 }
 `)) //
 
-func (rd *ruleDefinition) makeAddRule() ast.Decl {
+func (rd *ruleDefinition) makeAddRule(params []*ruleParameter) ast.Decl {
 	writer := bytes.NewBufferString("")
-	addRuleTemplate.Execute(writer, rd)
+	err := addRuleTemplate.Execute(writer, rd)
+	if err != nil {
+		panic(err)
+	}
 	parsed := parseDefinition(writer.String())
 	return parsed.Decls[0]
 }
