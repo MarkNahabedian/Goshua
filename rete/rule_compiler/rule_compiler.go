@@ -142,6 +142,10 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 			})
 		}
 	}
+	// All rule parameters have been determined.  Fill in
+	// ruleParameter.Remaining for the cionvenience of the
+	// code generation template.
+	spec.fillRemaining()
 	// Determine rule output types by finding calls to rete.Node.Emit
 	ast.Inspect(decl, func(n ast.Node) bool {
 		if n == nil {
@@ -248,6 +252,14 @@ type RuleSpec struct {
 	RuleEmits         []string
 }
 
+// fillRemaining fills in the rs.RuleParameters[*].Remaining fields.
+func (rs *RuleSpec) fillRemaining() {
+	length := len(rs.RuleParameters)
+	for i, rp := range rs.RuleParameters {
+		rp.Remaining = length - i -1
+	}
+}
+
 func (rs *RuleSpec) LastParam() *ruleParameter {
 	return rs.RuleParameters[len(rs.RuleParameters)-1]
 }
@@ -263,14 +275,14 @@ func (rs *RuleSpec) InstallerJoinIndices() []int {
 	return result
 }
 
-func (rs *RuleSpec) AllButLastParameter() []*ruleParameter {
-	return rs.RuleParameters[0 : len(rs.RuleParameters)-1]
-}
-
 // ruleParameter holds the name and type for a single parameter of a rule.
 type ruleParameter struct {
 	Name      string
 	ParamType string
+	// The number of parameters remaining after this one.
+	// This is filled in by calling RuleSpec.fillRemaining before the
+	// code template is called.
+	Remaining int
 }
 
 // ParamTypeGood attempts to return a string for rp.ParamType that is safe
@@ -339,9 +351,13 @@ func {{$rs.RuleCallerName}}(node rete.Node, i interface{}) {
 	{{/* The variable __jr is used to walk down the parameters list. */}}
 	var __jr rete.JoinResult = joinResult
 	{{/* n parameters, n-1 joins, n-2 CDRs. */}}
-	{{range $p := $rs.AllButLastParameter}}
-		{{$p.Name}} := __jr[0].({{$p.ParamTypeGood}})
-		__jr = __jr[1].(rete.JoinResult)
+	{{range $p := $rs.RuleParameters}}
+		{{if ge $p.Remaining 1}}
+			{{$p.Name}} := __jr[0].({{$p.ParamTypeGood}})
+		{{end}}
+		{{if ge $p.Remaining 2}}
+			__jr = __jr[1].(rete.JoinResult)
+		{{end}}
 	{{end}}
 	{{with $lastParam := $rs.LastParam}}
 		{{$lastParam.Name}} := __jr[1].({{$lastParam.ParamTypeGood}})
@@ -358,17 +374,3 @@ func {{$rs.RuleCallerName}}(node rete.Node, i interface{}) {
 
 `)) // End Template
 
-
-/*
-
-Problems:
-
-Emit types rendered wrong
-
-param type packages not getting imported
-
-only thed first package added by calls to AddImport gets serialized to
-output file though all are returned by astutil.Imports.
-
-
-*/
