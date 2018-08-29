@@ -17,6 +17,12 @@ import "text/template"
 const rule_file_suffix string = "_rules.go"
 const output_file_suffix string = "_rules_out.go"
 
+const ruleNamePrefix = "rule_"
+
+func ruleBaseName(ruleName string) string {
+	return strings.TrimPrefix(ruleName, ruleNamePrefix)
+}
+
 func main() {
 	fset := token.NewFileSet()
 	files := []*ast.File{}
