@@ -1,6 +1,7 @@
 package rete
 
 import "fmt"
+import "reflect"
 
 // This is a kludge because I've not found a way in go to express a
 // literal that identifies a data type.
@@ -30,26 +31,20 @@ func EnsureTypeTestRegistered(name string, f func(i interface{}) bool) {
 type TypeTestNode struct {
 	// Node
 	BasicNode
-	typeName string
-	testFunc func(i interface{}) bool
+	Type reflect.Type
 }
 
-func MakeTypeTestNode(t string) *TypeTestNode {
-	n := &TypeTestNode{typeName: t}
-	n.typeName = t
-	var ok bool
-	if n.testFunc, ok = TypeTestRegistry[t]; !ok {
-		panic(fmt.Sprintf("No registered type test function for %s", t))
-	}
+func MakeTypeTestNode(t reflect.Type) *TypeTestNode {
+	n := &TypeTestNode{Type: t}
 	n.label = fmt.Sprintf("type test %s", t)
 	return n
 }
 
-func (n *TypeTestNode) TypeName() string { return n.typeName }
+func (n *TypeTestNode) TypeName() string { return n.Type.String() }
 
 // Receive is part of the node interface.
 func (n *TypeTestNode) Receive(item interface{}) {
-	if n.testFunc(item) {
+	if reflect.TypeOf(item).ConvertibleTo(n.Type) {
 		n.Emit(item)
 	}
 }
@@ -61,15 +56,15 @@ func (n *TypeTestNode) IsValid() bool {
 
 // GetTypeTestNode finds or creates a Node that filters by the specified type t.
 // n should be the root node of a rete.
-func GetTypeTestNode(n Node, typeName string) *TypeTestNode {
+func GetTypeTestNode(n Node, typ reflect.Type) *TypeTestNode {
 	for _, output := range n.Outputs() {
 		if output, ok := output.(*TypeTestNode); ok {
-			if output.typeName == typeName {
+			if output.Type == typ {
 				return output
 			}
 		}
 	}
-	o := MakeTypeTestNode(typeName)
+	o := MakeTypeTestNode(typ)
 	Connect(n, o)
 	return o
 }

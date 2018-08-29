@@ -3,6 +3,7 @@
 
 package runtime
 
+import "reflect"
 import "goshua/rete"
 
 type Rule interface {
@@ -21,10 +22,10 @@ type Rule interface {
 	Caller() func(rete.Node, interface{})
 
 	// ParamTypes is the names of the types of the rule's parameters.
-	ParamTypes() []string
+	ParamTypes() []reflect.Type
 
 	// EmitTypess contains the names of the types of objects that the rule can Emit.
-	EmitTypes() []string
+	EmitTypes() []reflect.Type
 }
 
 type rule struct {
@@ -32,8 +33,8 @@ type rule struct {
 	ruleFunctionName string
 	installer func(rete.Node)
 	caller func(rete.Node, interface{})
-	paramTypes []string
-	emitTypes []string
+	paramTypes []reflect.Type
+	emitTypes []reflect.Type
 }
 
 func (r *rule) Name() string { return r.name }
@@ -46,9 +47,9 @@ func (r *rule) RuleFunctionName() string {
 	return r.ruleFunctionName
 }
 
-func (r *rule) ParamTypes() []string { return r.paramTypes }
+func (r *rule) ParamTypes() []reflect.Type { return r.paramTypes }
 
-func (r *rule) EmitTypes() []string { return r.emitTypes }
+func (r *rule) EmitTypes() []reflect.Type { return r.emitTypes }
 
 
 // AllRules is a catalog describing all compiled rules that are loaded
@@ -62,8 +63,8 @@ func AddRule(name string,
 		ruleFunctionName string,
 		installer func(rete.Node),
 		caller func(rete.Node, interface{}),
-		paramTypes []string,
-		emitTypes []string) {
+		paramTypes []reflect.Type,
+		emitTypes []reflect.Type) {
 	AllRules = append(AllRules, &rule{
 		name: name,
 		ruleFunctionName: ruleFunctionName,

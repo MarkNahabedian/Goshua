@@ -10,6 +10,7 @@ import "go/token"
 import "go/types"
 import "golang.org/x/tools/go/ast/astutil"
 import "os"
+import "strconv"
 import "strings"
 import "text/template"
 
@@ -66,6 +67,7 @@ func main() {
 			Name:  ast.NewIdent(astFile.Name.Name),
 			Decls: []ast.Decl{},
 		}
+		astutil.AddImport(fset, newAstFile, "reflect")
 		astutil.AddImport(fset, newAstFile, "goshua/rete")
 		astutil.AddImport(fset, newAstFile, "goshua/rete/rule_compiler/runtime")
 		for _, decl := range astFile.Decls {
@@ -181,6 +183,13 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 // normalizePackage makes sure the type name s doesn't contain a package path.
 // If there is a package path it is added to the imports of astFile.
 func normalizePackage(fset *token.FileSet, astFile *ast.File, s string) string {
+	unq := func(s string) string {
+		s1, err := strconv.Unquote(s)
+		if err != nil {
+			return s
+		}
+		return s1
+	}
 	split := strings.Split(s, ".")
 	// If pt has a package path prefix then make sure that package is imported,
 	// unless its the package of the source file.
@@ -193,8 +202,16 @@ func normalizePackage(fset *token.FileSet, astFile *ast.File, s string) string {
 		}
 		astutil.AddImport(fset, astFile, split[0])
 		for _, i := range astFile.Imports {
-			if i.Path.Value == split[0] {
-				fixed := fmt.Sprintf("%s.%s", i.Name, split[1])
+			p := unq(i.Path.Value)
+			if p == split[0] {
+				var pkg string
+				if i.Name == nil {
+					split2 := strings.Split(p, "/")
+					pkg = split2[len(split2) - 1]
+				} else {
+					pkg = i.Name.Name
+				}
+				fixed := fmt.Sprintf("%s.%s", pkg, split[1])
 				return fixed
 			}
 		}
@@ -269,11 +286,15 @@ func init() {
 		"{{.RuleFunctionName}}",
 		{{.RuleInstallerName}},
 		{{.RuleCallerName}},
-		[]string{
-			{{range .RuleParameters}}"{{.ParamTypeGood}}", {{end}}
+		[]reflect.Type{
+			{{range .RuleParameters}}
+				reflect.TypeOf(func(x {{.ParamTypeGood}}){}).In(0),
+			{{end}}
 		},
-		[]string{
-			{{range .RuleEmits}}"{{.}}", {{end}}
+		[]reflect.Type{
+			{{range .RuleEmits}}
+				reflect.TypeOf(func(x {{.}}){}).In(0),
+			{{end}}
 		})
 }
 
@@ -281,7 +302,8 @@ func init() {
 
 func {{$rs.RuleInstallerName}}(root_node rete.Node) {
 	{{range $rs.RuleParameters}}
-		{{.Name}} := rete.GetTypeTestNode(root_node, "{{.ParamTypeGood}}")
+		{{.Name}} := rete.GetTypeTestNode(root_node,
+			reflect.TypeOf(func(x {{.ParamTypeGood}}){}).In(0))
 	{{end}}
 	var previous rete.Node = {{$rs.LastParam.Name}}
 	{{range $i := $rs.InstallerJoinIndices}}
