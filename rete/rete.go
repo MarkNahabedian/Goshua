@@ -229,12 +229,20 @@ func (n *FunctionNode) IsValid() bool {
 }
 
 
+type AbstractBufferNode interface {
+	Clear()
+	Count() int
+	DoItems(func(interface{}))
+}
+
+
 // BufferNode collects items into a buffer.
 // BufferNode provides cursors for iterating over the collected
 // items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
 	// Node
 	BasicNode
+	AbstractBufferNode
 	items []interface{}
 }
 
@@ -260,6 +268,13 @@ func (n *BufferNode) Receive(item interface{}) {
 func (n *BufferNode) Clear() {
 	n.items = nil
 }
+
+func (n *BufferNode) DoItems(f func(interface{})) {
+	for _, item := range n.items {
+		f(item)
+	}
+}
+
 
 type cursor struct {
 	done   bool
