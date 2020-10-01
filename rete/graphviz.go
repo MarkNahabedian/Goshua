@@ -12,9 +12,14 @@ func MakeGraph(root Node) (*gographviz.Escape, error) {
 	graph.SetDir(true)
 	graph.SetName(graphName)
 	Walk(root, func(n Node) {
-		graph.AddNode(graphName, n.Label(), nil)
+		nodeattrs := map[string]string{}
+		if _, ok := n.(AbstractBufferNode); ok {
+			nodeattrs["shape"] = "box"
+		}
+		graph.AddNode(graphName, n.Label(), nodeattrs)
+	})
+	Walk(root, func(n Node) {
 		for _, o := range n.Outputs() {
-			graph.AddNode(graphName, o.Label(), nil)
 			graph.AddEdge(n.Label(), o.Label(), true, nil)
 		}
 	})
