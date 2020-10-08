@@ -44,11 +44,13 @@ func Connect(from Node, to Node) {
 // Inputs, Outputs, and Emit methods.
 // BasicNode is abstract.  It should not be instantiated.
 type BasicNode struct {
-	Node
 	label   string
 	inputs  []Node
 	outputs []Node
 }
+
+// *BasicNode must implement the Node interface:
+var _ Node = (*BasicNode)(nil)
 
 // Label is part of the node interface.
 func (n *BasicNode) Label() string {
@@ -112,7 +114,6 @@ func MakeRootNode() Node {
 // ActionNode is a node that can perform some action on its input item,
 // like construct and assert a fact.
 type ActionNode struct {
-	// Node
 	BasicNode
 	actionFunction func(item interface{})
 }
@@ -139,7 +140,6 @@ func (n *ActionNode) IsValid() bool {
 // TestNode implements a rete node with a single input.  items Received
 // by a TestNode are only Emited if they satisfy a test function.
 type TestNode struct {
-	// Node
 	BasicNode
 	testFunction func(interface{}) bool
 }
@@ -205,7 +205,6 @@ func GetTypeFilterNode(n Node, t reflect.Type) *TypeFilterNode {
 // FunctionNode calls function on the incoming item.  It can
 // conditionally Emit that item or something else.
 type FunctionNode struct {
-	// Node
 	BasicNode
 	function func(Node, interface{})
 }
@@ -230,6 +229,7 @@ func (n *FunctionNode) IsValid() bool {
 
 
 type AbstractBufferNode interface {
+	Node
 	Clear()
 	Count() int
 	DoItems(func(interface{}))
@@ -240,11 +240,12 @@ type AbstractBufferNode interface {
 // BufferNode provides cursors for iterating over the collected
 // items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
-	// Node
 	BasicNode
-	AbstractBufferNode
 	items []interface{}
 }
+
+// *BufferNode must implement the AbstractBufferNode interface:
+var _ AbstractBufferNode = (*BufferNode)(nil)
 
 // IsValid is part of the Node interface.
 func (n *BufferNode) IsValid() bool {
@@ -307,7 +308,6 @@ func (c *cursor) Next() (interface{}, bool) {
 // JoinNode combines the items in its two input BufferNodes pairwise,
 // Emiting the cross-product as successive [2]interface{} arrays..
 type JoinNode struct {
-	// Node
 	BasicNode
 }
 

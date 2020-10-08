@@ -7,12 +7,14 @@ import "fmt"
 // to one another based on equivalence_function.
 type UniqueBufferNode struct {
 	BasicNode
-	AbstractBufferNode
 	items []interface{}
 	// equivalence_function implements the uniqueness test for
 	// this node.
 	equivalence_function func(interface{}, interface{}) bool
 }
+
+// *UniqueBufferNode must implement the AbstractBufferNode interface:
+var _ AbstractBufferNode = (*UniqueBufferNode)(nil)
 
 // IsValid is part of the Node interface.
 func (n *UniqueBufferNode) IsValid() bool {
