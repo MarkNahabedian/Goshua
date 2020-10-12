@@ -7,27 +7,28 @@ import "reflect"
 import "goshua/rete"
 
 type Rule interface {
-	Name() string
+	Name() string                            // defimpl:"read name"
 
 	// RuleRunctionName is the name of the function that is called by
 	// the Caller() function and implements the rule.
-	RuleFunctionName() string
+	RuleFunctionName() string              // defimpl:"read ruleFunctionName"
 
 	// Installer adds the implementation of the rule to the rete
 	// represented by this given root node.
-	Installer() func(rete.Node)
+	Installer() func(rete.Node)              // defimpl:"read installer"
 
 	// Caller is the function that destructures the join results and
 	// calls the rule function.
-	Caller() func(rete.Node, interface{})
+	Caller() func(rete.Node, interface{})     // defimpl:"read caller"
 
-	// ParamTypes is the names of the types of the rule's parameters.
-	ParamTypes() []reflect.Type
+	// ParamTypes lists the types of the rule's parameters.
+	ParamTypes() []reflect.Type               // defimpl:"read paramTypes"
 
-	// EmitTypess contains the names of the types of objects that the rule can Emit.
-	EmitTypes() []reflect.Type
+	// EmitTypess lists the types of objects that the rule can Emit.
+	EmitTypes() []reflect.Type                 // defimpl:"read emitTypes"
 }
 
+/*
 type rule struct {
 	name string
 	ruleFunctionName string
@@ -50,7 +51,7 @@ func (r *rule) RuleFunctionName() string {
 func (r *rule) ParamTypes() []reflect.Type { return r.paramTypes }
 
 func (r *rule) EmitTypes() []reflect.Type { return r.emitTypes }
-
+*/
 
 // AllRules is a catalog describing all compiled rules that are loaded
 // into the program
@@ -65,7 +66,7 @@ func AddRule(name string,
 		caller func(rete.Node, interface{}),
 		paramTypes []reflect.Type,
 		emitTypes []reflect.Type) {
-	AllRules = append(AllRules, &rule{
+	AllRules = append(AllRules, &RuleImpl{
 		name: name,
 		ruleFunctionName: ruleFunctionName,
 		installer: installer,
