@@ -28,30 +28,6 @@ type Rule interface {
 	EmitTypes() []reflect.Type                 // defimpl:"read emitTypes"
 }
 
-/*
-type rule struct {
-	name string
-	ruleFunctionName string
-	installer func(rete.Node)
-	caller func(rete.Node, interface{})
-	paramTypes []reflect.Type
-	emitTypes []reflect.Type
-}
-
-func (r *rule) Name() string { return r.name }
-
-func (r *rule) Installer() func(rete.Node) { return r.installer }
-
-func (r *rule) Caller() func(rete.Node, interface{}) { return r.caller }
-
-func (r *rule) RuleFunctionName() string {
-	return r.ruleFunctionName
-}
-
-func (r *rule) ParamTypes() []reflect.Type { return r.paramTypes }
-
-func (r *rule) EmitTypes() []reflect.Type { return r.emitTypes }
-*/
 
 // AllRules is a catalog describing all compiled rules that are loaded
 // into the program
