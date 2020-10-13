@@ -13,6 +13,7 @@ import "os"
 import "strconv"
 import "strings"
 import "text/template"
+import "defimpl/util"
 
 const rule_file_suffix string = "_rules.go"
 const output_file_suffix string = "_rules_out.go"
@@ -73,15 +74,21 @@ func main() {
 			Name:  ast.NewIdent(astFile.Name.Name),
 			Decls: []ast.Decl{},
 		}
-		astutil.AddImport(fset, newAstFile, "reflect")
-		astutil.AddImport(fset, newAstFile, "goshua/rete")
-		astutil.AddImport(fset, newAstFile, "goshua/rete/rule_compiler/runtime")
 		for _, decl := range astFile.Decls {
 			grokRuleDefinition(fset, astFile, newAstFile, decl, info)
 		}
 		if len(newAstFile.Decls) > 0 {
-			// Kludge to get all of the imports to appear in the output file.
-			newAstFile.Decls[0].(*ast.GenDecl).Lparen = token.Pos(1) 
+			// These packages are required by the boiler
+			// plate of the generated code and might not
+			// be found in the source file, so we must add
+			// them explicitly.
+			astutil.AddImport(fset, newAstFile, "reflect")
+			astutil.AddImport(fset, newAstFile, "goshua/rete")
+			astutil.AddImport(fset, newAstFile, "goshua/rete/rule_compiler/runtime")
+			errors := util.EnsureImports(fset, astFile, newAstFile)
+			for _, err := range errors {
+				fmt.Fprintf(os.Stderr, "Import error: %s\n", err)
+			}
 			// Write the file
 			output_filename := strings.TrimSuffix(filename, rule_file_suffix) + output_file_suffix
 			fmt.Printf("Writing %s\n", output_filename)
