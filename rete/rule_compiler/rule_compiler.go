@@ -150,7 +150,7 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 		}
 	}
 	// All rule parameters have been determined.  Fill in
-	// ruleParameter.Remaining for the cionvenience of the
+	// ruleParameter.Remaining for the convenience of the
 	// code generation template.
 	spec.fillRemaining()
 	// Determine rule output types by finding calls to rete.Node.Emit
