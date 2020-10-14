@@ -75,7 +75,10 @@ func main() {
 			Decls: []ast.Decl{},
 		}
 		for _, decl := range astFile.Decls {
-			grokRuleDefinition(fset, astFile, newAstFile, decl, info)
+			spec := grokRuleDefinition(fset, astFile, newAstFile, decl, info)
+			if spec != nil {
+				addRuleCode(spec, fset, newAstFile)
+			}
 		}
 		if len(newAstFile.Decls) > 0 {
 			// These packages are required by the boiler
@@ -109,18 +112,19 @@ func main() {
 }
 
 // grokRuleDefinition determines if decl looks like a rule definition,
-// and if so returns declarations to be added to the output file.
-func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.File, decl ast.Decl, info *types.Info) {
+// and if so returns a RuleSpec.
+func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.File,
+	decl ast.Decl, info *types.Info) *RuleSpec {
 	fd, ok := decl.(*ast.FuncDecl)
 	if !ok {
-		return
+		return (*RuleSpec)(nil)
 	}
 	if !strings.HasPrefix(fd.Name.Name, ruleNamePrefix) {
-		return
+		return (*RuleSpec)(nil)
 	}
 	// Verify that the first parameter is type rete.Node and note identifier.
 	if !strings.HasSuffix(info.TypeOf(fd.Type.Params.List[0].Names[0]).String(), "rete.Node") {
-		return
+		return (*RuleSpec)(nil)
 	}
 	rule_name := ruleBaseName(fd.Name.Name)
 	spec := &RuleSpec{
@@ -182,7 +186,11 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 	if len(spec.RuleEmits) == 0 {
 		fmt.Fprintf(os.Stderr, "Rule %s doesn't call Emit.\n", rule_name)
 	}
-	// Generate new definitions for the rule
+	return spec
+}
+
+// addRuleCode generates definitions for the rule and adds them to newAstFile.
+func addRuleCode(spec *RuleSpec, fset *token.FileSet, newAstFile *ast.File) {
 	writer := bytes.NewBufferString("")
 	err := RuleTemplate.Execute(writer, spec)
 	if err != nil {
