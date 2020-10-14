@@ -3,40 +3,16 @@ package rete
 
 import "fmt"
 import "reflect"
+import "goshua/rete/rule_compiler/runtime"
 
 
-type Node interface {
-	// Label returns the node's label.
-	Label() string
-
-	// Inputs returns thenodes that can send data to this node.
-	Inputs() []Node
-
-	// Outputs returns the nodes that this node can output to.
-	Outputs() []Node
-
-	addInput(Node)
-	addOutput(Node)
-
-	// Emit outputs item to this node's Outputs.  It does so by calling
-	// Receive on each Output.
-	Emit(item interface{})
-
-	// Receive causes the node to process an input item.
-	Receive(item interface{})
-
-	// IsValid check the node to make sure it's valid.
-	IsValid() bool
-
-	// Clear causes a Node to forget any stored items.
-	Clear()
-}
+type Node = runtime.Node
 
 
 // Connect arranges for from to output to to.
 func Connect(from Node, to Node) {
-	from.addOutput(to)
-	to.addInput(from)
+	from.AddOutput(to)
+	to.AddInput(from)
 }
 
 
@@ -72,11 +48,11 @@ func (n *BasicNode) Outputs() []Node {
 	return n.outputs
 }
 
-func (n1 *BasicNode) addInput(n2 Node) {
+func (n1 *BasicNode) AddInput(n2 Node) {
 	n1.inputs = append(n1.inputs, n2)
 }
 
-func (n1 *BasicNode) addOutput(n2 Node) {
+func (n1 *BasicNode) AddOutput(n2 Node) {
 	n1.outputs = append(n1.outputs, n2)
 }
 
@@ -352,11 +328,11 @@ func (n *JoinSide) Outputs() []Node {
 	return []Node{n.joinNode}
 }
 
-func (n *JoinSide) addInput(n2 Node) {
+func (n *JoinSide) AddInput(n2 Node) {
 	panic("JoinSide.addInput called")
 }
 
-func (n *JoinSide) addOutput(n2 Node) {
+func (n *JoinSide) AddOutput(n2 Node) {
 	panic("JoinSide.addOutput called")
 }
 
@@ -414,17 +390,17 @@ func Join(label string, a, b Node) *JoinNode {
 		input:    GetBuffered(a),
 		swap:     false,
 	}
-	aSide.input.addOutput(aSide)
+	aSide.input.AddOutput(aSide)
 	bSide := &JoinSide{
 		joinNode: jn,
 		input:    GetBuffered(b),
 		swap:     true,
 	}
-	bSide.input.addOutput(bSide)
+	bSide.input.AddOutput(bSide)
 	aSide.other = bSide
 	bSide.other = aSide
-	jn.addInput(aSide)
-	jn.addInput(bSide)
+	jn.AddInput(aSide)
+	jn.AddInput(bSide)
 	return jn
 }
 
