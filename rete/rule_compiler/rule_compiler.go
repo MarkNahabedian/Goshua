@@ -33,8 +33,7 @@ func main() {
 			return !strings.HasSuffix(fi.Name(), output_file_suffix)
 		}, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing directory:\n\t%s\n", err)
-		return
+		panic(err)
 	}
 	for _, pkg := range pkgs {
 		for _, f := range pkg.Files {
@@ -60,6 +59,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Type errors: %s\n", err)
 		return
 	}
+	fmt.Printf("Type information collected.\n")
 	// What rules do we have?
 	for _, astFile := range files {
 		// Check that the file name matches *_rules.go.
@@ -111,10 +111,20 @@ func main() {
 	}
 }
 
+const NODE_TYPE_STRING = "goshua/rete/rule_compiler/runtime.runtime.Node"
+
+func typeString(t types.Type) string {
+	return types.TypeString(t,
+		func (p *types.Package) string {
+			return p.Path() + "." + p.Name()
+		})
+}
+
 // grokRuleDefinition determines if decl looks like a rule definition,
 // and if so returns a RuleSpec.
 func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.File,
 	decl ast.Decl, info *types.Info) *RuleSpec {
+	// body.
 	fd, ok := decl.(*ast.FuncDecl)
 	if !ok {
 		return (*RuleSpec)(nil)
@@ -122,8 +132,9 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 	if !strings.HasPrefix(fd.Name.Name, ruleNamePrefix) {
 		return (*RuleSpec)(nil)
 	}
-	// Verify that the first parameter is type rete.Node and note identifier.
-	if !strings.HasSuffix(info.TypeOf(fd.Type.Params.List[0].Names[0]).String(), "rete.Node") {
+	// Verify that the first parameter is type rete.Node:
+	type_string := typeString(info.TypeOf(fd.Type.Params.List[0].Names[0]))
+	if type_string != NODE_TYPE_STRING {
 		return (*RuleSpec)(nil)
 	}
 	rule_name := ruleBaseName(fd.Name.Name)
@@ -144,8 +155,7 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 
 			// types.TypeString with a nil Qualifier will always write
 			// the package path.
-			pt := info.TypeOf(nameId).String()
-			pt = normalizePackage(fset, newAstFile, pt)
+			pt := types.TypeString(info.TypeOf(nameId), package_qualifier(astFile))
 			name := nameId.Name
 			spec.RuleParameters = append(spec.RuleParameters, &ruleParameter{
 				Name:      name,
@@ -171,14 +181,13 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 			return true
 		}
 		if receiver, ok := sel.X.(*ast.Ident); !ok ||
-			info.TypeOf(receiver).String() != "goshua/rete.Node" {
+			typeString(info.TypeOf(receiver)) != NODE_TYPE_STRING {
 			return true
 		}
 		if sel.Sel.Name == "Emit" {
-			fmt.Printf("%s emits %s\n", rule_name, info.TypeOf(c.Args[0]).String())
 			spec.RuleEmits = adjoin(spec.RuleEmits,
-				normalizePackage(fset, newAstFile,
-					info.TypeOf(c.Args[0]).String()))
+				types.TypeString(info.TypeOf(c.Args[0]),
+					package_qualifier(astFile)))
 			return false
 		}
 		return true
@@ -205,43 +214,13 @@ func addRuleCode(spec *RuleSpec, fset *token.FileSet, newAstFile *ast.File) {
 	return
 }
 
-// normalizePackage makes sure the type name s doesn't contain a package path.
-// If there is a package path it is added to the imports of astFile.
-func normalizePackage(fset *token.FileSet, astFile *ast.File, s string) string {
-	unq := func(s string) string {
-		s1, err := strconv.Unquote(s)
-		if err != nil {
-			return s
+func package_qualifier(f *ast.File) types.Qualifier {
+	return func(pkg *types.Package) string {
+		if pkg.Name() == f.Name.Name {
+			return ""
 		}
-		return s1
+		return pkg.Name()
 	}
-	split := strings.Split(s, ".")
-	// If pt has a package path prefix then make sure that package is imported,
-	// unless its the package of the source file.
-	// ***** We're not coping with the possibility of
-	// ***** collision with another package name.
-	if len(split) > 1 {
-		// ***** We should make sure the whole package path matches.
-		if strings.HasSuffix(split[0], astFile.Name.Name) {
-			return split[1]
-		}
-		astutil.AddImport(fset, astFile, split[0])
-		for _, i := range astFile.Imports {
-			p := unq(i.Path.Value)
-			if p == split[0] {
-				var pkg string
-				if i.Name == nil {
-					split2 := strings.Split(p, "/")
-					pkg = split2[len(split2) - 1]
-				} else {
-					pkg = i.Name.Name
-				}
-				fixed := fmt.Sprintf("%s.%s", pkg, split[1])
-				return fixed
-			}
-		}
-	}
-	return s
 }
 
 // adjoin treats strs as a set and appends add on;y if it is not already present.
@@ -267,6 +246,7 @@ type RuleSpec struct {
 	RuleEmits         []string
 }
 
+// *** I thing Remaining can go away.
 // fillRemaining fills in the rs.RuleParameters[*].Remaining fields.
 func (rs *RuleSpec) fillRemaining() {
 	length := len(rs.RuleParameters)
@@ -314,72 +294,38 @@ func (rp *ruleParameter) ParamTypeGood() string {
 var RuleTemplate *template.Template = template.Must(template.New("RuleTemplate").Parse(`
 package {{.Package}}
 
+// Rule {{.RuleName}}:
 func init() {
-	runtime.AddRule("{{.RuleName}}",
+	var rule_spec runtime.Rule
+	rule_spec = runtime.AddRule(
+		"{{.RuleName}}",
 		"{{.RuleFunctionName}}",
-		{{.RuleInstallerName}},
+		func (root runtime.Node) {
+			rete.InstallRule(root, rule_spec)
+		},
 		{{.RuleCallerName}},
 		[]reflect.Type{
-			{{range .RuleParameters}}
+			{{range .RuleParameters -}}
 				reflect.TypeOf(func(x {{.ParamTypeGood}}){}).In(0),
-			{{end}}
+			{{end -}}
 		},
 		[]reflect.Type{
-			{{range .RuleEmits}}
+			{{range .RuleEmits -}}
 				reflect.TypeOf(func(x {{.}}){}).In(0),
-			{{end}}
+			{{end -}}
 		})
 }
 
 {{with $rs := .}}
 
-func {{$rs.RuleInstallerName}}(root_node rete.Node) {
-	{{range $rs.RuleParameters}}
-		{{.Name}} := rete.GetTypeTestNode(root_node,
-			reflect.TypeOf(func(x {{.ParamTypeGood}}){}).In(0))
-	{{end}}
-	var previous rete.Node = {{$rs.LastParam.Name}}
-	{{range $i := $rs.InstallerJoinIndices}}
-		{{with $p := index $rs.RuleParameters $i}}
-			previous = rete.Join("{{$rs.RuleName}}-{{$i}}", {{$p.Name}}, previous)
-		{{end}}
-	{{end}}
-	ruleNode := rete.MakeFunctionNode("{{$rs.RuleName}}", {{$rs.RuleCallerName}})
-	rete.Connect(previous, ruleNode)
-	rete.Connect(ruleNode, root_node)
+func {{$rs.RuleCallerName}}(node rete.Node, params []interface{}) {
+	{{- range $i, $param := $rs.RuleParameters }}
+		{{.Name}} := params[{{$i}}].({{$param.ParamTypeGood}})
+	{{- end -}}
+	{{template "CALL_RULE_FUNCTION" $rs}}
 }
 
-{{if eq (len $rs.RuleParameters) 1}}
-func {{$rs.RuleCallerName}}(node rete.Node, i interface{}) {
-	{{with $firstParam := index $rs.RuleParameters 0}}
-		{{$firstParam.Name}} := i.({{$firstParam.ParamTypeGood}})
-	{{end}}
-	{{template "CALL_RULE_FUNCTION" $rs}}
-}
-{{else}}
-func {{$rs.RuleCallerName}}(node rete.Node, i interface{}) {
-	joinResult := i.(rete.JoinResult)
-	{{/*
-		Bind each of the rule parameters to the corresponding element of
-		joinResult.
-	*/}}
-	{{/* The variable __jr is used to walk down the parameters list. */}}
-	var __jr rete.JoinResult = joinResult
-	{{/* n parameters, n-1 joins, n-2 CDRs. */}}
-	{{range $p := $rs.RuleParameters}}
-		{{if ge $p.Remaining 1}}
-			{{$p.Name}} := __jr[0].({{$p.ParamTypeGood}})
-		{{end}}
-		{{if ge $p.Remaining 2}}
-			__jr = __jr[1].(rete.JoinResult)
-		{{end}}
-	{{end}}
-	{{with $lastParam := $rs.LastParam}}
-		{{$lastParam.Name}} := __jr[1].({{$lastParam.ParamTypeGood}})
-	{{end}}
-	{{template "CALL_RULE_FUNCTION" $rs}}
-}
-{{end}}
+
 {{end}}{{/* end with */}}
 
 {{define "CALL_RULE_FUNCTION"}}

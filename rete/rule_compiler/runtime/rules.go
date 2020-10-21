@@ -3,6 +3,7 @@
 
 package runtime
 
+
 import "reflect"
 // import "goshua/rete"
 
@@ -47,7 +48,7 @@ type Rule interface {
 
 	// Caller is the function that destructures the join results and
 	// calls the rule function.
-	Caller() func(Node, interface{})     // defimpl:"read caller"
+	Caller() func(Node, []interface{})     // defimpl:"read caller"
 
 	// ParamTypes lists the types of the rule's parameters.
 	ParamTypes() []reflect.Type               // defimpl:"read paramTypes"
@@ -67,16 +68,19 @@ var AllRules []Rule = []Rule{}
 func AddRule(name string,
 		ruleFunctionName string,
 		installer func(Node),
-		caller func(Node, interface{}),
+		caller func(Node, []interface{}),
 		paramTypes []reflect.Type,
-		emitTypes []reflect.Type) {
-	AllRules = append(AllRules, &RuleImpl{
+		emitTypes []reflect.Type) Rule {
+	// Body
+	rule := &RuleImpl{
 		name: name,
 		ruleFunctionName: ruleFunctionName,
 		installer: installer,
 		caller: caller,
 		paramTypes: paramTypes,
 		emitTypes: emitTypes,
-	})
+	}
+	AllRules = append(AllRules, rule)
+	return rule
 }
 
