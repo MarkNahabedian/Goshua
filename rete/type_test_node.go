@@ -21,7 +21,7 @@ func (n *TypeTestNode) TypeName() string { return n.Type.String() }
 
 // Receive is part of the node interface.
 func (n *TypeTestNode) Receive(item interface{}) {
-	if reflect.TypeOf(item).ConvertibleTo(n.Type) {
+	if reflect.TypeOf(item).AssignableTo(n.Type) {
 		n.Emit(item)
 	}
 }
