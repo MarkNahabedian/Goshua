@@ -12,8 +12,11 @@ type RuleNode struct {
 
 // IsValid is part of the node interface.
 func (n *RuleNode) IsValid() bool {
-	for _, input := range n.Inputs() {
+	for i, input := range n.Inputs() {
 		if _, ok := input.(AbstractBufferNode); !ok {
+			return false
+		}
+		if n.RuleSpec.ParamTypes()[i] != input.Inputs()[0].(*TypeTestNode).Type {
 			return false
 		}
 	}
@@ -88,8 +91,6 @@ func fill_and_call(in *RuleParameterNode, in_item interface{},
 	// parameters of that type we pass in_item for, we use it for
 	// the first parameter of that type.
 	if param_position >= len(parameters) {
-		fmt.Printf("  *** fill_and_call calling %s %v\n",
-			rule_node.RuleSpec.Name(), parameters)
 		rule_node.RuleSpec.Caller()(rule_node, parameters)
 		return
 	}
@@ -110,6 +111,7 @@ func fill_and_call(in *RuleParameterNode, in_item interface{},
 }
 
 func (node *RuleParameterNode) Receive(item interface{}) {
+	node.items = append(node.items, item)
 	for _, output := range node.Outputs() {
 		if rule_node, ok := output.(*RuleNode); ok {
 			parameters := make([]interface{},
