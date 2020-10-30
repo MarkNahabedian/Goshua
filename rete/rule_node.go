@@ -76,47 +76,111 @@ func GetRuleParameterNode(ttn *TypeTestNode) *RuleParameterNode {
 	return rpn
 }
 
-func fill_and_call(in *RuleParameterNode, in_item interface{},
-	rule_node *RuleNode,
-	param_position int,
-	parameters []interface{}) {
+const DEBUG_FILL_AND_CALL bool = false
+
+func indent(s string, count int) string {
+	out := ""
+	for i := 0; i < count; i++ {
+		out += s
+	}
+	return out
+}
+
+func fill_and_call(in *RuleParameterNode, in_item interface{}, rule_node *RuleNode) {
+	if DEBUG_FILL_AND_CALL {
+		fmt.Printf("fill_and_call %v %v %v\n", in, in_item, rule_node)
+	}
 	// The same RuleParameterNode might appear multiple times in
 	// the inputs of a RuleNode if the type represented by that
 	// RuleParameterNode appears in multiple argument positions
 	// in the rule function.
 	//
-	// We must use in_item for exactly one such parameter and
-	// DoItems for the rest, otherwise we will skip some input
-	// combinations.  Since it doesn't matter which of several
-	// parameters of that type we pass in_item for, we use it for
-	// the first parameter of that type.
-	if param_position >= len(parameters) {
-		rule_node.RuleSpec.Caller()(rule_node, parameters)
-		return
+	// Any combinations of input parameters to the rule that do not
+	// include in_item have already been considered as previous
+	// items have been Received.  We must now consider all
+	// parameter combinations where in_item appears as at least
+	// one parameter.
+	parameters := make([]interface{}, len(rule_node.Inputs()))
+	in_count := 0
+	for _, node := range rule_node.Inputs() {
+		if node == in {
+			in_count += 1
+		}
 	}
-	nth_input := rule_node.Inputs()[param_position]
-	if in != nil && nth_input == in {
-		parameters[param_position] = in_item
-		// Only restrict to in_item at the first opportunity:
-		fill_and_call((*RuleParameterNode)(nil), nil, rule_node,
-			param_position + 1, parameters)		
-	} else {
+	var f func(int, bool)
+	/*
+	// This one causes duplicate calls when the same type appears
+	// as more than one parameter:
+	f = func (param_position int, includes_in bool) {
+		if DEBUG_FILL_AND_CALL {
+			fmt.Printf("fill_and_call/f %d %s %#v\n",
+				param_position, in.Label(), parameters)
+		}
+		if param_position >= len(parameters) {
+			if includes_in {
+				rule_node.RuleSpec.Caller()(rule_node, parameters)
+			}
+			return
+		}
+		nth_input := rule_node.Inputs()[param_position]
+		// This parameter_position is the only
+		// RuleParameterNode of this type so we only consider
+		// in_item for this parameter_position.  If there are
+		// more parameter_positions with the same
+		// RuleParameterNode (and this parameter type) then we
+		// use DoItems to consider all buffered values of that
+		// type.
+		if nth_input == in && in_count == 1 {
+			parameters[param_position] = in_item
+			f(param_position + 1, true)
+		} else {
+			nth_input.(AbstractBufferNode).DoItems(
+				func(item interface{}) {
+					parameters[param_position] = item
+					f(param_position + 1,
+						includes_in || item == in_item)
+				})
+		}
+	}
+	*/
+	f = func (param_position int, includes_in bool) {
+		if DEBUG_FILL_AND_CALL {
+			fmt.Printf("%s fill_and_call/f %d %s %s\n",
+				indent("  ", param_position),
+				param_position, in.Label(), parameters)
+		}
+		if param_position >= len(parameters) {
+			if includes_in {
+				rule_node.RuleSpec.Caller()(rule_node, parameters)
+			}
+			return
+		}
+		nth_input := rule_node.Inputs()[param_position]
 		nth_input.(AbstractBufferNode).DoItems(
 			func(item interface{}) {
 				parameters[param_position] = item
-				fill_and_call(in, item, rule_node,
-					param_position + 1, parameters)
-				})
+				f(param_position + 1,
+					includes_in || item == in_item)
+			})
 	}
+	f(0, false)
 }
 
 func (node *RuleParameterNode) Receive(item interface{}) {
 	node.items = append(node.items, item)
+	// A single rule might have more than one parameter of a given
+	// type and thus might appear as more than one output of a
+	// given RuleParameterNode.  This is a consequence of the
+	// decision that a rule have one input per parameter, rather
+	// than one input per parameter type.
+	done := map[Node]bool{}
 	for _, output := range node.Outputs() {
+		if done[output] {
+			return
+		}
+		done[output] = true
 		if rule_node, ok := output.(*RuleNode); ok {
-			parameters := make([]interface{},
-				len(rule_node.RuleSpec.ParamTypes()))
-			fill_and_call(node, item, rule_node, 0, parameters)
+			fill_and_call(node, item, rule_node)
 		} else {
 			output.Receive(item)
 		}
