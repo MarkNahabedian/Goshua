@@ -213,8 +213,6 @@ type AbstractBufferNode interface {
 
 
 // BufferNode collects items into a buffer.
-// BufferNode provides cursors for iterating over the collected
-// items.  Only BufferNodes can be the inputs of a JoinNode.
 type BufferNode struct {
 	BasicNode
 	items []interface{}
@@ -253,119 +251,6 @@ func (n *BufferNode) DoItems(f func(interface{})) {
 }
 
 
-type cursor struct {
-	done   bool
-	buffer *BufferNode
-	index  int
-}
-
-// GetCursor returns a new cursor into n.
-func (n *BufferNode) GetCursor() *cursor {
-	var c cursor
-	c.buffer = n
-	c.done = false
-	c.index = 0
-	return &c
-}
-
-
-// Next returns the item that the cursor is currently referring to and
-// advances the cursor.  Next returns nil, false if there are no more items.
-func (c *cursor) Next() (interface{}, bool) {
-	if c.index >= len(c.buffer.items) {
-		return nil, false
-	}
-	i := c.buffer.items[c.index]
-	c.index += 1
-	return i, true
-}
-
-
-// JoinNode combines the items in its two input BufferNodes pairwise,
-// Emiting the cross-product as successive [2]interface{} arrays..
-type JoinNode struct {
-	BasicNode
-}
-
-// IsValid is part of the Node interface.
-func (n *JoinNode) IsValid() bool {
-	if len(n.Inputs()) != 2 {
-		return false
-	}
-	// The inputs of a JoinNode must be JoinSide Nodes.
-	if _, ok := n.Inputs()[0].(*JoinSide); !ok {
-		return false
-	}
-	if _, ok := n.Inputs()[1].(*JoinSide); !ok {
-		return false
-	}
-	return true
-}
-
-
-type JoinSide struct {
-	joinNode *JoinNode
-	input    *BufferNode
-	other    *JoinSide
-	swap     bool
-}
-
-func (n *JoinSide) Label() string {
-	var side string
-	if n.swap {
-		side = "B"
-	} else {
-		side = "A"
-	}
-	return fmt.Sprintf("%s - %s", n.joinNode.Label(), side)
-}
-
-func (n *JoinSide) Inputs() []Node {
-	return []Node{n.input}
-}
-
-func (n *JoinSide) Outputs() []Node {
-	return []Node{n.joinNode}
-}
-
-func (n *JoinSide) AddInput(n2 Node) {
-	panic("JoinSide.addInput called")
-}
-
-func (n *JoinSide) AddOutput(n2 Node) {
-	panic("JoinSide.addOutput called")
-}
-
-func (n *JoinSide) Emit(item interface{}) {
-	n.joinNode.Emit(item)
-}
-
-func (n *JoinSide) IsValid() bool {
-	// JoinSide.addInput should prevent construction of an
-	// invalid JoinSide.
-	return true
-}
-
-func (n *JoinSide) Clear() {}
-
-// JoinResult is the type of object Emited by a JoinNode.
-type JoinResult *[2]interface{}
-
-func MakeJoinResult(item1, item2 interface{}) JoinResult {
-	return &[2]interface{}{item1, item2}
-}
-
-func (n *JoinSide) Receive(item1 interface{}) {
-	c := n.other.input.GetCursor()
-	for item2, present := c.Next(); present; item2, present = c.Next() {
-		if n.swap {
-			n.Emit(MakeJoinResult(item2, item1))
-		} else {
-			n.Emit(MakeJoinResult(item1, item2))
-		}
-	}
-}
-
 // GetBuffered finds or creates a BufferNode which buffers the output of n.
 func GetBuffered(n Node) *BufferNode {
 	if b, ok := n.(*BufferNode); ok {
@@ -382,27 +267,6 @@ func GetBuffered(n Node) *BufferNode {
 	return bn
 }
 
-func Join(label string, a, b Node) *JoinNode {
-	jn := &JoinNode{}
-	jn.label = label
-	aSide := &JoinSide{
-		joinNode: jn,
-		input:    GetBuffered(a),
-		swap:     false,
-	}
-	aSide.input.AddOutput(aSide)
-	bSide := &JoinSide{
-		joinNode: jn,
-		input:    GetBuffered(b),
-		swap:     true,
-	}
-	bSide.input.AddOutput(bSide)
-	aSide.other = bSide
-	bSide.other = aSide
-	jn.AddInput(aSide)
-	jn.AddInput(bSide)
-	return jn
-}
 
 func Walk(root Node, f func(n Node)) {
 	visited := make(map[Node]bool)
