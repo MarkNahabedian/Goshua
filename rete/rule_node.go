@@ -10,17 +10,24 @@ type RuleNode struct {
 	RuleSpec runtime.Rule
 }
 
-// IsValid is part of the node interface.
-func (n *RuleNode) IsValid() bool {
+// Validate is part of the node interface.
+func (n *RuleNode) Validate() []error {
+	errors := ValidateConnectivity(n)
 	for i, input := range n.Inputs() {
 		if _, ok := input.(AbstractBufferNode); !ok {
-			return false
+			errors = append(errors,
+				fmt.Errorf("input %s of %s is not an AbstractBufferNode",
+					input.Label(), n.Label()))
 		}
-		if n.RuleSpec.ParamTypes()[i] != input.Inputs()[0].(*TypeTestNode).Type {
-			return false
+		param_type := n.RuleSpec.ParamTypes()[i]
+		input_type := input.Inputs()[0].(*TypeTestNode).Type
+		if param_type != input_type {
+			errors = append(errors,
+				fmt.Errorf("input type %v does not match parameter type %v",
+					input_type, param_type))
 		}
 	}
-	return true
+	return errors
 }
 
 func (n *RuleNode) Label() string {
@@ -50,14 +57,20 @@ type RuleParameterNode struct {
 	BufferNode
 }
 
-func (n *RuleParameterNode) IsValid() bool {
+// Validate is part of the Node interface.
+func (n *RuleParameterNode) Validate() []error {
+	errors := ValidateConnectivity(n)
 	if len(n.Inputs()) != 1 {
-		return false
+		errors = append(errors,
+			fmt.Errorf("RuleParameterNode should have exactly one input, %s",
+				n.Label()))
 	}
 	if _, ok := n.Inputs()[0].(*TypeTestNode); !ok {
-		return false
+		errors = append(errors,
+			fmt.Errorf("the input of a RuleParameterNode should be a TypeTestNode, %s",
+				n.Label()))
 	}
-	return true
+	return errors
 }
 
 func (n *RuleParameterNode) Label() string {

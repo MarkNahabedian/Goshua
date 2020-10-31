@@ -27,8 +27,9 @@ type Node interface {
 	// Receive causes the node to process an input item.
 	Receive(item interface{})
 
-	// IsValid check the node to make sure it's valid.
-	IsValid() bool
+	// Validate retiurns an error if the Node doesn't pass
+	// validity checks.
+	Validate() []error
 
 	// Clear causes a Node to forget any stored items.
 	Clear()

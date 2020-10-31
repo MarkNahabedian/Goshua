@@ -26,9 +26,9 @@ func (n *TypeTestNode) Receive(item interface{}) {
 	}
 }
 
-// IsValid is part of the Node interface.
-func (n *TypeTestNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *TypeTestNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 // GetTypeTestNode finds or creates a Node that filters by the specified type t.

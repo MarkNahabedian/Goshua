@@ -15,6 +15,33 @@ func Connect(from Node, to Node) {
 	to.AddInput(from)
 }
 
+func ValidateConnectivity(n Node) []error {
+	errors := []error{}
+	find := func (node Node, nodes []Node) bool {
+		for _, candidate := range nodes {
+			if candidate == node {
+				return true
+			}
+		}
+		return false
+	}
+	for _, input := range n.Inputs() {
+		if !find(n, input.Outputs()) {
+			errors = append(errors,
+				fmt.Errorf("Node %s is not an output of input %s",
+					n.Label(), input.Label()))
+		}
+	}
+	for _, output := range n.Outputs() {
+		if !find(n, output.Inputs()) {
+			errors = append(errors,
+				fmt.Errorf("Node %s is not an input of output %s",
+					n.Label(), output.Label()))
+		}
+	}
+	return errors
+}
+
 
 // BasicNode provides a common implementation of the node interface's
 // Inputs, Outputs, and Emit methods.
@@ -26,7 +53,7 @@ type BasicNode struct {
 }
 
 // *BasicNode must implement the Node interface:
-var _ Node = (*BasicNode)(nil)
+// var _ Node = (*BasicNode)(nil)
 
 // Label is part of the node interface.
 func (n *BasicNode) Label() string {
@@ -68,12 +95,6 @@ func (n *BasicNode) Receive(interface{}) {
 	panic(fmt.Sprintf("BasicNode.Receive on %T", n))
 }
 
-// IsValid is part of the node interface.
-func (n *BasicNode) IsValid() bool {
-	// Dummy method
-	panic("BasicNode is abstract.  It should not have been instantiated.")
-}
-
 func (n *BasicNode) Clear() {
 	// Default method.
 }
@@ -107,9 +128,9 @@ func (n *ActionNode) Receive(item interface{}) {
 	n.Emit(item)
 }
 
-// IsValid is part of the node interface.
-func (n *ActionNode) IsValid() bool {
-	return true
+// Validate is part is part of the Node interface.
+func (n *ActionNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 
@@ -131,9 +152,9 @@ func (n *TestNode) Receive(item interface{}) {
 	}
 }
 
-// IsValid is part of the Node interface.
-func (n *TestNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *TestNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 
@@ -157,12 +178,12 @@ func (n *TypeFilterNode) Receive(item interface{}) {
 	}
 }
 
-// IsValid is part of the Node interface.
-func (n *TypeFilterNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *TypeFilterNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
-// TypeFilterNode find or create a Node that filters by the specified type t.
+// GetTypeFilterNode find or create a Node that filters by the specified type t.
 // n should be the root node of a rete.
 func GetTypeFilterNode(n Node, t reflect.Type) *TypeFilterNode {
 	for _, output := range n.Outputs() {
@@ -198,9 +219,9 @@ func (n *FunctionNode) Receive(item interface{}) {
 	n.function(n, item)
 }
 
-// IsValid is part of the Node interface.
-func (n *FunctionNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *FunctionNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 
@@ -221,9 +242,9 @@ type BufferNode struct {
 // *BufferNode must implement the AbstractBufferNode interface:
 var _ AbstractBufferNode = (*BufferNode)(nil)
 
-// IsValid is part of the Node interface.
-func (n *BufferNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *BufferNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 func (n *BufferNode) Count() int {
@@ -231,10 +252,6 @@ func (n *BufferNode) Count() int {
 }
 
 // Receive is part of the Node interface.
-// When a BufferNode receives an item each of its cursors
-// calls its newItemFunction so that the JoinNode that
-// created that cursor can attempt to join that item with
-// each item in the other branch of the JoinNode's BufferNode.
 func (n *BufferNode) Receive(item interface{}) {
 	n.items = append(n.items, item)
 	n.Emit(item)

@@ -28,8 +28,8 @@ func TestRete(t *testing.T) {
 	})
 	// Validate
 	rete.Walk(root, func(n rete.Node) {
-		if !n.IsValid() {
-			t.Errorf("Node %v %s not valid.", n, n.Label())
+		for _, err := range n.Validate() {
+			t.Errorf("%s", err)
 		}
 	})
 	// Graph

@@ -16,9 +16,9 @@ type UniqueBufferNode struct {
 // *UniqueBufferNode must implement the AbstractBufferNode interface:
 var _ AbstractBufferNode = (*UniqueBufferNode)(nil)
 
-// IsValid is part of the Node interface.
-func (n *UniqueBufferNode) IsValid() bool {
-	return true
+// Validate is part of the Node interface.
+func (n *UniqueBufferNode) Validate() []error {
+	return ValidateConnectivity(n)
 }
 
 func (n *UniqueBufferNode) Count() int {
