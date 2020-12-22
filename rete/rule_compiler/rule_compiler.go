@@ -53,10 +53,12 @@ func main() {
 	conf := types.Config{
 		Importer: importer.For("source", nil), // importer.Default(),
 	}
-	_, err = conf.Check(files[0].Name.Name, fset, files, info)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Type errors: %s\n", err)
-		return
+	for _, file := range files {
+		_, err = conf.Check(file.Name.Name, fset, files, info)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Type errors: %s\n", err)
+			return
+		}
 	}
 	fmt.Printf("Type information collected.\n")
 	// What rules do we have?
