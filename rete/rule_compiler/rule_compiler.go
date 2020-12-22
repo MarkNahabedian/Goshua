@@ -10,7 +10,6 @@ import "go/token"
 import "go/types"
 import "golang.org/x/tools/go/ast/astutil"
 import "os"
-import "strconv"
 import "strings"
 import "text/template"
 import "defimpl/util"
@@ -67,7 +66,7 @@ func main() {
 		if !strings.HasSuffix(filename, rule_file_suffix) {
 			continue
 		}
-		fmt.Printf("Considering file %s\n", fset.Position(astFile.Pos()).Filename)
+		fmt.Printf("rule_compiler considering file %s\n", fset.Position(astFile.Pos()).Filename)
 		// If we find any rules in astFile then we'll need to create
 		// an output file.  In that case decls won't be empty.
 		newAstFile := &ast.File{
@@ -87,7 +86,6 @@ func main() {
 			// them explicitly.
 			astutil.AddImport(fset, newAstFile, "reflect")
 			astutil.AddImport(fset, newAstFile, "goshua/rete")
-			astutil.AddImport(fset, newAstFile, "goshua/rete/rule_compiler/runtime")
 			errors := util.EnsureImports(fset, astFile, newAstFile)
 			for _, err := range errors {
 				fmt.Fprintf(os.Stderr, "Import error: %s\n", err)
@@ -111,7 +109,7 @@ func main() {
 	}
 }
 
-const NODE_TYPE_STRING = "goshua/rete/rule_compiler/runtime.runtime.Node"
+const NODE_TYPE_STRING = "goshua/rete.Node"
 
 func typeString(t types.Type) string {
 	return types.TypeString(t,
@@ -296,11 +294,11 @@ package {{.Package}}
 
 // Rule {{.RuleName}}:
 func init() {
-	var rule_spec runtime.Rule
-	rule_spec = runtime.AddRule(
+	var rule_spec rete.Rule
+	rule_spec = rete.AddRule(
 		"{{.RuleName}}",
 		"{{.RuleFunctionName}}",
-		func (root runtime.Node) {
+		func (root rete.Node) {
 			rete.InstallRule(root, rule_spec)
 		},
 		{{.RuleCallerName}},

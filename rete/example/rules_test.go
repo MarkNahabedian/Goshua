@@ -3,13 +3,12 @@ package example
 import "reflect"
 import "testing"
 import "goshua/rete"
-import "goshua/rete/rule_compiler/runtime"
 
 
 func TestRete(t *testing.T) {
 	root := rete.MakeRootNode()
-	var thing3_rule runtime.Rule
-	for _, rule := range runtime.AllRules {
+	var thing3_rule rete.Rule
+	for _, rule := range rete.AllRules {
 		rule.Installer()(root)
 		if rule.Name() == "thing3" {
 			thing3_rule = rule
@@ -40,7 +39,7 @@ func TestRete(t *testing.T) {
 	}
 	// Dump
 	dump := func() {
-		rete.Walk(root, func(n runtime.Node) {
+		rete.Walk(root, func(n rete.Node) {
 			if buf, ok := n.(rete.AbstractBufferNode); ok {
 				t.Logf("Node %s, %d items:\n", buf.Label(), buf.Count())
 				buf.DoItems(func (x interface{}) {

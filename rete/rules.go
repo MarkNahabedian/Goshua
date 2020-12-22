@@ -1,39 +1,9 @@
 // Package runtime defines the runtime data structures that are
 // created by the rule_compiler.
 
-package runtime
-
+package rete
 
 import "reflect"
-// import "goshua/rete"
-
-type Node interface {
-	// Label returns the node's label.
-	Label() string
-
-	// Inputs returns thenodes that can send data to this node.
-	Inputs() []Node
-
-	// Outputs returns the nodes that this node can output to.
-	Outputs() []Node
-
-	AddInput(Node)
-	AddOutput(Node)
-
-	// Emit outputs item to this node's Outputs.  It does so by calling
-	// Receive on each Output.
-	Emit(item interface{})
-
-	// Receive causes the node to process an input item.
-	Receive(item interface{})
-
-	// Validate retiurns an error if the Node doesn't pass
-	// validity checks.
-	Validate() []error
-
-	// Clear causes a Node to forget any stored items.
-	Clear()
-}
 
 
 type Rule interface {

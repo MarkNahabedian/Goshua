@@ -1,13 +1,12 @@
 package rete
 
 import "fmt"
-import "goshua/rete/rule_compiler/runtime"
 
 
 // RuleNode implements the application of a rule.
 type RuleNode struct {
 	BasicNode
-	RuleSpec runtime.Rule
+	RuleSpec Rule
 }
 
 // Validate is part of the node interface.
@@ -34,7 +33,7 @@ func (n *RuleNode) Label() string {
 	return fmt.Sprintf("rule %s", n.RuleSpec.Name())
 }
 
-func InstallRule(root Node, rule runtime.Rule) {
+func InstallRule(root Node, rule Rule) {
 	rule_node := &RuleNode {
 		RuleSpec: rule,
 	}

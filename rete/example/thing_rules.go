@@ -1,8 +1,8 @@
 package example
 
-import "goshua/rete/rule_compiler/runtime"
-
 //go:generate rule_compiler
+
+import "goshua/rete"
 
 
 type thing1 struct {
@@ -43,7 +43,7 @@ func foo() *thing3 {
 */
 
 
-func rule_thing3(node runtime.Node, t1 *thing1, t2a, t2b *thing2) {
+func rule_thing3(node rete.Node, t1 *thing1, t2a, t2b *thing2) {
 	if t2a == t2b {
 		return
 	}

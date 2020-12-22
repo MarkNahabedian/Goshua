@@ -3,11 +3,35 @@ package rete
 
 import "fmt"
 import "reflect"
-import "goshua/rete/rule_compiler/runtime"
 
 
-type Node = runtime.Node
+type Node interface {
+	// Label returns the node's label.
+	Label() string
 
+	// Inputs returns thenodes that can send data to this node.
+	Inputs() []Node
+
+	// Outputs returns the nodes that this node can output to.
+	Outputs() []Node
+
+	AddInput(Node)
+	AddOutput(Node)
+
+	// Emit outputs item to this node's Outputs.  It does so by calling
+	// Receive on each Output.
+	Emit(item interface{})
+
+	// Receive causes the node to process an input item.
+	Receive(item interface{})
+
+	// Validate returns an error if the Node doesn't pass
+	// validity checks.
+	Validate() []error
+
+	// Clear causes a Node to forget any stored items.
+	Clear()
+}
 
 // Connect arranges for from to output to to.
 func Connect(from Node, to Node) {
