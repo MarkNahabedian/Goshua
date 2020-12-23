@@ -95,7 +95,6 @@ func main() {
 			// Write the file
 			output_filename := strings.TrimSuffix(filename, rule_file_suffix) + output_file_suffix
 			fmt.Printf("Writing %s\n", output_filename)
-
 			out, err := os.Create(output_filename)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Can't create %s: %s", output_filename, err)
@@ -116,7 +115,7 @@ const NODE_TYPE_STRING = "goshua/rete.Node"
 func typeString(t types.Type) string {
 	return types.TypeString(t,
 		func (p *types.Package) string {
-			return p.Path() + "." + p.Name()
+			return p.Path()
 		})
 }
 
@@ -133,6 +132,7 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 		return (*RuleSpec)(nil)
 	}
 	// Verify that the first parameter is type rete.Node:
+	// *** MAYBE WE NEED A BETTER TEST HERE
 	type_string := typeString(info.TypeOf(fd.Type.Params.List[0].Names[0]))
 	if type_string != NODE_TYPE_STRING {
 		return (*RuleSpec)(nil)
@@ -210,6 +210,7 @@ func addRuleCode(spec *RuleSpec, fset *token.FileSet, newAstFile *ast.File) {
 		fmt.Fprintf(os.Stderr, "%s\n", writer.String())
 		panic(fmt.Sprintf("Errors:\n%s", err))
 	}
+	fmt.Printf("Rule %s\n", spec.RuleName)
 	newAstFile.Decls = append(newAstFile.Decls, parsed.Decls...)
 	return
 }
