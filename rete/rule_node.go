@@ -120,41 +120,6 @@ func fill_and_call(in *RuleParameterNode, in_item interface{}, rule_node *RuleNo
 		}
 	}
 	var f func(int, bool)
-	/*
-	// This one causes duplicate calls when the same type appears
-	// as more than one parameter:
-	f = func (param_position int, includes_in bool) {
-		if DEBUG_FILL_AND_CALL {
-			fmt.Printf("fill_and_call/f %d %s %#v\n",
-				param_position, in.Label(), parameters)
-		}
-		if param_position >= len(parameters) {
-			if includes_in {
-				rule_node.RuleSpec.Caller()(rule_node, parameters)
-			}
-			return
-		}
-		nth_input := rule_node.Inputs()[param_position]
-		// This parameter_position is the only
-		// RuleParameterNode of this type so we only consider
-		// in_item for this parameter_position.  If there are
-		// more parameter_positions with the same
-		// RuleParameterNode (and this parameter type) then we
-		// use DoItems to consider all buffered values of that
-		// type.
-		if nth_input == in && in_count == 1 {
-			parameters[param_position] = in_item
-			f(param_position + 1, true)
-		} else {
-			nth_input.(AbstractBufferNode).DoItems(
-				func(item interface{}) {
-					parameters[param_position] = item
-					f(param_position + 1,
-						includes_in || item == in_item)
-				})
-		}
-	}
-	*/
 	f = func (param_position int, includes_in bool) {
 		if DEBUG_FILL_AND_CALL {
 			fmt.Printf("%s fill_and_call/f %d %s %s\n",
