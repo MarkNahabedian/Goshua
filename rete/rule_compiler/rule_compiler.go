@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 	// Collect type information
-	fmt.Printf("Collecting type information.\n")
+	fmt.Printf("rule_compiler Collecting type information.\n")
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Defs:  make(map[*ast.Ident]types.Object),
@@ -193,7 +193,7 @@ func grokRuleDefinition(fset *token.FileSet, astFile *ast.File, newAstFile *ast.
 		return true
 	})
 	if len(spec.RuleEmits) == 0 {
-		fmt.Fprintf(os.Stderr, "Rule %s doesn't call Emit.\n", rule_name)
+		fmt.Fprintf(os.Stderr, "  Rule %s doesn't call Emit.\n", rule_name)
 	}
 	return spec
 }
