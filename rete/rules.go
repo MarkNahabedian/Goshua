@@ -24,8 +24,19 @@ type Rule interface {
 	// ParamTypes lists the types of the rule's parameters.
 	ParamTypes() []reflect.Type               // defimpl:"read paramTypes"
 
+	// DoParamTypes applies the function to each parameter type of
+	// the rule, terminating early if the function returns nil.
+	DoParamTypes(func(reflect.Type) bool)     // defimpl:"iterate paramTypes"
+
 	// EmitTypess lists the types of objects that the rule can Emit.
 	EmitTypes() []reflect.Type                 // defimpl:"read emitTypes"
+
+	// DoEmitTypes applies the function to each emit type of
+	// the rule, terminating early if the function returns nil.
+	DoEmitTypes(func(reflect.Type) bool)     // defimpl:"iterate emitTypes"
+
+	// Emits returns true if the specified type is emitted by the Rule.
+	Emits(reflect.Type) bool
 }
 
 
@@ -53,5 +64,19 @@ func AddRule(name string,
 	}
 	AllRules = append(AllRules, rule)
 	return rule
+}
+
+
+// Emits is part of the Rule interface.
+func (rule *RuleImpl) Emits(t reflect.Type) bool {
+	found := false
+	rule.DoEmitTypes(func(t1 reflect.Type) bool {
+		if t1 == t {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
