@@ -257,6 +257,12 @@ type AbstractBufferNode interface {
 }
 
 
+type TypedBufferNode interface {
+	AbstractBufferNode
+	Type() reflect.Type
+}
+
+
 // BufferNode collects items into a buffer.
 type BufferNode struct {
 	BasicNode

@@ -1,6 +1,7 @@
 package rete
 
 import "fmt"
+import "reflect"
 
 
 // RuleNode implements the application of a rule.
@@ -76,6 +77,15 @@ func (n *RuleParameterNode) Label() string {
 	return fmt.Sprintf("rule input %s", n.Inputs()[0].(*TypeTestNode).Type.String())
 }
 
+func (n *RuleParameterNode) Type() reflect.Type {
+	if len(n.Inputs()) == 1 {
+		i := n.Inputs()[0]
+		if ttn, ok := i.(*TypeTestNode); ok {
+			return ttn.Type
+		}
+	}
+	return nil
+}
 
 func GetRuleParameterNode(ttn *TypeTestNode) *RuleParameterNode {
 	for _, o := range ttn.Outputs() {
