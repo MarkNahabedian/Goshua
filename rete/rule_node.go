@@ -34,11 +34,19 @@ func (n *RuleNode) Label() string {
 	return fmt.Sprintf("rule %s", n.RuleSpec.Name())
 }
 
+// InstallRule installs a RuleNode for rule in the rete identified by
+// root.
+//
+// InstallRule also creates a buffer node for each of the rules output
+// types.
 func InstallRule(root Node, rule Rule) {
 	rule_node := &RuleNode {
 		RuleSpec: rule,
 	}
 	for _, param_type := range rule.ParamTypes() {
+		// *** Common code that i'm not bothering to abstract out
+		// because I plan to introduce a single node type that
+		// both filters by type and buffers.
 		ttn := GetTypeTestNode(root, param_type)
 		if ttn == nil {
 			panic(fmt.Sprintf("GetTypeTestNode returned nil for %v", param_type))
@@ -50,6 +58,19 @@ func InstallRule(root Node, rule Rule) {
 		Connect(rpn, rule_node)
 	}
 	Connect(rule_node, root)
+	for _, emit_type := range rule.EmitTypes() {
+		// *** Common code that i'm not bothering to abstract out
+		// because I plan to introduce a single node type that
+		// both filters by type and buffers.
+		ttn := GetTypeTestNode(root, emit_type)		
+		if ttn == nil {
+			panic(fmt.Sprintf("GetTypeTestNode returned nil for %v", emit_type))
+		}
+		rpn := GetRuleParameterNode(ttn)
+		if rpn == nil {
+			panic("GetRuleParameterNode returned nil for %v")
+		}
+	}
 }
 
 
