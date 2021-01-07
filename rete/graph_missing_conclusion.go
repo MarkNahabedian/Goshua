@@ -96,7 +96,6 @@ func GraphMissingConclusion(output_path string, root Node, expected reflect.Type
 			}
 		}
 	})
-	fmt.Printf("*** GraphMissingConclusion %#v\n", buffers)
 	g.BufferCount = len(buffers)
 	g.InstalledRulesCount = len(installed_rules)
 	graphName := fmt.Sprintf("missing-%s", expected.Name())
@@ -142,7 +141,6 @@ func GraphMissingConclusion(output_path string, root Node, expected reflect.Type
 	want_types := []reflect.Type { expected }
 	for len(want_types) > 0 {
 		typ := want_types[0]
-		fmt.Printf("*** GraphMissingConclusion type %s\n", typ)
 		graph_type(typ)
 		want_types = want_types[1:]
 		for _, rule := range installed_rules {
