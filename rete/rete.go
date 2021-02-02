@@ -25,7 +25,7 @@ type Node interface {
 	// Receive causes the node to process an input item.
 	Receive(item interface{})
 
-	// Validate returns an error if the Node doesn't pass
+	// Validate returns a slice of errors if the Node doesn't pass
 	// validity checks.
 	Validate() []error
 
@@ -107,8 +107,19 @@ func (n1 *BasicNode) AddOutput(n2 Node) {
 	n1.outputs = append(n1.outputs, n2)
 }
 
+func (n *BasicNode) Validate() []error {
+	return ValidateConnectivity(n)
+}
+
+// DEBUG_EMIT_HOOK, if not nil, is called by the Emit method 
+
+var DEBUG_EMIT_HOOK func(Node, interface{}) = nil
+
 // Emit is part of the node interface.
 func (n *BasicNode) Emit(item interface{}) {
+	if DEBUG_EMIT_HOOK != nil {
+		DEBUG_EMIT_HOOK(n, item)
+	}
 	for _, o := range n.Outputs() {
 		o.Receive(item)
 	}

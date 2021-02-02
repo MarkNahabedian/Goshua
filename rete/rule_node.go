@@ -83,19 +83,19 @@ func (n *RuleParameterNode) Validate() []error {
 	errors := ValidateConnectivity(n)
 	if len(n.Inputs()) != 1 {
 		errors = append(errors,
-			fmt.Errorf("RuleParameterNode should have exactly one input, %s",
+			fmt.Errorf("RuleParameterNode %q should have exactly one input",
 				n.Label()))
 	}
 	if _, ok := n.Inputs()[0].(*TypeTestNode); !ok {
 		errors = append(errors,
-			fmt.Errorf("the input of a RuleParameterNode should be a TypeTestNode, %s",
+			fmt.Errorf("the input of a RuleParameterNode (%q) should be a TypeTestNode",
 				n.Label()))
 	}
 	return errors
 }
 
 func (n *RuleParameterNode) Label() string {
-	return fmt.Sprintf("rule input %s", n.Inputs()[0].(*TypeTestNode).Type.String())
+	return fmt.Sprintf("rule input %s", n.Type().String())
 }
 
 func (n *RuleParameterNode) Type() reflect.Type {
@@ -119,9 +119,25 @@ func GetRuleParameterNode(ttn *TypeTestNode) *RuleParameterNode {
 	return rpn
 }
 
-const DEBUG_FILL_AND_CALL bool = false
+// DEBUG_FILL_AND_CALL_ENTRY_HOOK is meant to allow for debugging
+// output.  If non-nil, this function will be called whenever
+// fill_and_call is entered.
+var DEBUG_FILL_AND_CALL_ENTRY_HOOK func(*RuleParameterNode, interface{}, *RuleNode) = nil
 
-func indent(s string, count int) string {
+// DEBUG_FILL_AND_CALL_MARSHAL_HOOK, if noy nil, is called as each
+// parameter is marshalled prior to the invocation of a rule function.
+// The arguments to the hook are the parameter position, the
+// *RuleParameterNode to be providing the parameter at that position,
+// and a slice containing the parameters marshalled so far.
+var DEBUG_FILL_AND_CALL_MARSHAL_HOOK func(int, *RuleParameterNode, []interface{}) = nil
+
+// DEBUG_FILL_AND_CALL_RULE_CALL_HOOK, if not nil, is called with a
+// rule node and a slice containing the parameters the rule is being
+// applied to.
+var DEBUG_FILL_AND_CALL_RULE_CALL_HOOK func(*RuleNode, []interface{}) = nil
+
+// Indent returns a string of count repeated copies of s.
+func Indent(s string, count int) string {
 	out := ""
 	for i := 0; i < count; i++ {
 		out += s
@@ -130,8 +146,8 @@ func indent(s string, count int) string {
 }
 
 func fill_and_call(in *RuleParameterNode, in_item interface{}, rule_node *RuleNode) {
-	if DEBUG_FILL_AND_CALL {
-		fmt.Printf("fill_and_call %v %v %v\n", in, in_item, rule_node)
+	if DEBUG_FILL_AND_CALL_ENTRY_HOOK != nil {
+		DEBUG_FILL_AND_CALL_ENTRY_HOOK(in, in_item, rule_node)
 	}
 	// The same RuleParameterNode might appear multiple times in
 	// the inputs of a RuleNode if the type represented by that
@@ -144,25 +160,26 @@ func fill_and_call(in *RuleParameterNode, in_item interface{}, rule_node *RuleNo
 	// parameter combinations where in_item appears as at least
 	// one parameter.
 	parameters := make([]interface{}, len(rule_node.Inputs()))
-	in_count := 0
-	for _, node := range rule_node.Inputs() {
-		if node == in {
-			in_count += 1
-		}
-	}
 	var f func(int, bool)
 	f = func (param_position int, includes_in bool) {
-		if DEBUG_FILL_AND_CALL {
-			fmt.Printf("%s fill_and_call/f %d %s %s\n",
-				indent("  ", param_position),
-				param_position, in.Label(), parameters)
+		if DEBUG_FILL_AND_CALL_MARSHAL_HOOK != nil {
+			DEBUG_FILL_AND_CALL_MARSHAL_HOOK(param_position, in, parameters)
 		}
 		if param_position >= len(parameters) {
 			if includes_in {
+				if DEBUG_FILL_AND_CALL_RULE_CALL_HOOK != nil {
+					DEBUG_FILL_AND_CALL_RULE_CALL_HOOK(rule_node, parameters)
+				}
 				rule_node.RuleSpec.Caller()(rule_node, parameters)
 			}
 			return
 		}
+		// Because (*RuleParameterNode).Receive adds the new
+		// item to the buffer beforew fill_and_call is called,
+		// we dn't need any special consideration of in_item
+		// other than to avoid applying the rule redundantly
+		// to parameter combinations that were considered
+		// before in_item was assertred.
 		nth_input := rule_node.Inputs()[param_position]
 		nth_input.(AbstractBufferNode).DoItems(
 			func(item interface{}) {
@@ -174,22 +191,37 @@ func fill_and_call(in *RuleParameterNode, in_item interface{}, rule_node *RuleNo
 	f(0, false)
 }
 
+// DEBUG_RULE_PARAMETER_RECEIVE_HOOK, if not nil, is called each time
+// (*RuleParameterNode).Receive is called.  The hook function is
+// passed the RuleParameterNode and the item it is receiving.
+var DEBUG_RULE_PARAMETER_RECEIVE_HOOK func(*RuleParameterNode, interface{}) = nil
+
 func (node *RuleParameterNode) Receive(item interface{}) {
+	if DEBUG_RULE_PARAMETER_RECEIVE_HOOK != nil {
+		DEBUG_RULE_PARAMETER_RECEIVE_HOOK(node, item)
+	}
 	node.items = append(node.items, item)
 	// A single rule might have more than one parameter of a given
 	// type and thus might appear as more than one output of a
 	// given RuleParameterNode.  This is a consequence of the
 	// decision that a rule have one input per parameter, rather
 	// than one input per parameter type.
+	//
+	// Each rule should be considerred only once but a rule
+	// parameter should be considered (by fill_and_call) in all
+	// parameter positions of the corresponding type.
 	done := map[Node]bool{}
 	for _, output := range node.Outputs() {
-		if done[output] {
-			return
-		}
-		done[output] = true
 		if rule_node, ok := output.(*RuleNode); ok {
+			// Consider each RuleNode we output to only once:
+			if done[output] {
+				continue
+			}
+			done[output] = true
 			fill_and_call(node, item, rule_node)
 		} else {
+			// if node is not buffering for a RuleNode
+			// then delegate to that output:
 			output.Receive(item)
 		}
 	}
